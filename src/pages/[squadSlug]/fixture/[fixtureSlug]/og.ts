@@ -50,37 +50,25 @@ export const GET: APIRoute = async ({ params }) => {
 
   const gameDateStr = formatGameDate(fixture.gameDate ?? null);
 
-  const element = React.createElement(
+  const overlayContent = React.createElement(
     "div",
     {
       style: {
-        width: "100%",
-        height: "100%",
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        padding: "48px 56px 56px",
         display: "flex",
         flexDirection: "column",
-        alignItems: "center",
+        alignItems: "flex-start",
         justifyContent: "flex-end",
-        background: headerImageUrl
-          ? `url(${headerImageUrl})`
-          : "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
+        backgroundColor: "rgba(0,0,0,0.7)",
       },
     },
-    React.createElement(
-      "div",
-      {
-        style: {
-          width: "100%",
-          padding: "48px 56px 56px",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "flex-start",
-          justifyContent: "flex-end",
-          backgroundColor: "rgba(0,0,0,0.7)",
-        },
-      },
+    [
       React.createElement("div", {
+        key: "squad",
         style: {
           fontSize: 28,
           fontWeight: 600,
@@ -91,6 +79,7 @@ export const GET: APIRoute = async ({ params }) => {
         children: squad.name,
       }),
       React.createElement("div", {
+        key: "vs",
         style: {
           fontSize: 48,
           fontWeight: 800,
@@ -102,6 +91,7 @@ export const GET: APIRoute = async ({ params }) => {
       }),
       gameDateStr
         ? React.createElement("div", {
+            key: "date",
             style: {
               fontSize: 24,
               color: "rgba(255,255,255,0.95)",
@@ -111,15 +101,54 @@ export const GET: APIRoute = async ({ params }) => {
           })
         : null,
       React.createElement("div", {
+        key: "cta",
         style: {
           fontSize: 20,
           color: "rgba(255,255,255,0.8)",
           marginTop: 16,
           textShadow: "0 1px 2px rgba(0,0,0,0.5)",
         },
-        children: "Player of the Match — Vote now",
+        children: "POTM",
+      }),
+    ]
+  );
+
+  const backgroundLayer = headerImageUrl
+    ? React.createElement("img", {
+        src: headerImageUrl,
+        style: {
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+        },
       })
-    )
+    : React.createElement("div", {
+        style: {
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
+        },
+      });
+
+  const element = React.createElement(
+    "div",
+    {
+      style: {
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "flex-end",
+        position: "relative",
+      },
+    },
+    [backgroundLayer, overlayContent]
   );
 
   return new ImageResponse(element, {
