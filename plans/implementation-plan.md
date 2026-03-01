@@ -39,14 +39,15 @@ All squad routes are nested under the squad's slug. This gives each squad a bran
 | `/new` | Yes | Create a new squad |
 | `/{squad-slug}` | Yes | Squad home: player list, recent fixtures, squad header |
 | `/{squad-slug}/settings` | Yes | Edit squad name/description/header image |
-| `/{squad-slug}/admins` | Yes (owner) | Manage admins: list, invite by email, remove |
+| `/{squad-slug}/admins` | Yes (admin+) | Manage admins: list, invite by email. Owner can also remove admins. |
 | `/{squad-slug}/admins/invite/{token}` | Yes | Accept an admin invitation |
 | `/{squad-slug}/fixture/new` | Yes | Create new fixture: opponent, pick players, set voting deadline |
 | `/{squad-slug}/fixture/{fixture-slug}` | Yes | Admin view of fixture + POTM results (always visible to admins) |
 | `/{squad-slug}/fixture/{fixture-slug}/vote` | No | **Public** POTM voting page + results after deadline |
+| `/about` | No | About page: overview, how-to-use instructions, GitHub repo link |
 | `/uploads/{...path}` | No | Serve uploaded squad header images |
 
-System routes (`/`, `/login`, `/dashboard`, `/new`, `/api`, `/uploads`) are reserved — squad slugs cannot collide because they always contain a UUID suffix.
+System routes (`/`, `/about`, `/login`, `/dashboard`, `/new`, `/api`, `/uploads`) are reserved — squad slugs cannot collide because they always contain a UUID suffix.
 
 All forms use standard HTML form submissions with POST handling in Astro frontmatter. Zero client-side JS except small inline scripts (copy link, etc.).
 
@@ -68,15 +69,16 @@ All forms use standard HTML form submissions with POST handling in Astro frontma
 - DB stores relative path in `header_image` column
 - Images served via Astro endpoint at `/uploads/{...path}`
 - Accepted formats: JPEG, PNG, WebP. Max size: 2MB. Validated server-side.
+- **Upload guidance** shown on the form: "Recommended: 1200x400px landscape image (3:1 ratio). JPEG, PNG, or WebP, max 2MB." No hard dimension enforcement — images are displayed with `object-cover` CSS so any aspect ratio works, but the 3:1 landscape ratio looks best in the header slot.
 - Header image displayed on the squad page and on the public voting page
 
 ### Multi-Admin & Invitations (`/{squad-slug}/admins`)
 - When a squad is created, `squad_admins` row inserted with role `owner`
-- Owner can invite by email → creates `squad_invites` row with UUID token, 7-day expiry
-- Invite URL displayed for owner to copy/share: `/{squad-slug}/admins/invite/{token}` (no email sending in MVP)
+- Both owners and admins can invite new admins by email → creates `squad_invites` row with UUID token, 7-day expiry
+- Invite URL displayed for the inviter to copy/share: `/{squad-slug}/admins/invite/{token}` (no email sending in MVP)
 - Invitee visits URL → must be logged in (redirect to `/login?redirect=...` if not) → email must match → confirm page → POST accepts → `squad_admins` row created
-- **Owner**: everything — edit squad, manage players, manage admins, create fixtures, delete squad
-- **Admin**: edit squad, manage players, create fixtures. Cannot manage admins or delete squad.
+- **Owner**: everything — edit squad, manage players, invite/remove admins, create fixtures, delete squad
+- **Admin**: edit squad, manage players, invite new admins, create fixtures. Cannot remove other admins or delete squad.
 - `squad_admins` table is the source of truth for all access control
 - Owner can remove admins (not themselves). Admins can leave voluntarily.
 
@@ -96,8 +98,10 @@ All forms use standard HTML form submissions with POST handling in Astro frontma
 POST handler: validate inputs, check/create `potm_voter` cookie (UUID, 1-year, stable browser ID), insert vote (DB unique constraint as backstop), set `voted_{fixture_id}` cookie, redirect to GET.
 
 ### Results Display
-- **Admin view** (`/{squad-slug}/fixture/{fixture-slug}`): Full results at all times — vote counts per player, voter names, CSS bar chart. Squad header image at top.
-- **Public view** (`/{squad-slug}/fixture/{fixture-slug}/vote` after deadline): Only reveals the **winner(s)** — the player(s) with the most votes. No full breakdown, no voter names, no counts for other players. In case of a tie, all tied players are shown as joint winners.
+- **Admin view** (`/{squad-slug}/fixture/{fixture-slug}`): Full results at all times — vote counts per player, voter names, CSS bar chart. Squad header image at top. This is the dedicated admin results page.
+- **Public vote page** (`/{squad-slug}/fixture/{fixture-slug}/vote` after deadline):
+  - **Non-admins**: Only see the **winner(s)** — the player name(s) with a "POTM Winner" badge. No vote counts, no voter names, no breakdown of other players. Ties show all joint winners.
+  - **Logged-in admins** (squad admin visiting the vote page): See the winner announcement PLUS a full vote breakdown below (counts, voter names, bar chart) — same detail as the admin results page.
 - SQL: JOIN fixture_players → players, LEFT JOIN votes, GROUP BY player, ORDER BY vote_count DESC
 
 ## File Structure
@@ -126,6 +130,7 @@ src/
     ResultsDisplay.astro           # Vote results bar chart
   pages/
     index.astro                    # Landing page
+    about.astro                    # About: overview, instructions, GitHub link
     login.astro                    # "Sign in with Google" button
     api/auth/[...all].ts           # Better Auth catch-all endpoint
     dashboard/index.astro          # User's squads overview
@@ -196,7 +201,11 @@ pages/
 - Cookie-based duplicate prevention
 - Results display after deadline
 
-### Phase 8: Polish
+### Phase 8: About Page
+- `/about` — static page, no auth required, linked from NavBar and landing page
+- Content: (1) Brief overview of what POTM is and how it works, (2) Step-by-step instructions (create account → create squad → add players → create fixture → share vote link → view results), (3) Link to the GitHub repository
+
+### Phase 9: Polish
 - Consistent Tailwind styling across all pages (mobile-first)
 - Form validation error messages
 - Copy-link button (inline script)
