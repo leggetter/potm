@@ -2,6 +2,7 @@ app = "potm-voting"
 primary_region = "lhr"
 
 [build]
+  dockerfile = "Dockerfile"
 
 [env]
   PORT = "3000"
