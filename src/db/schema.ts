@@ -59,6 +59,7 @@ export const fixtures = sqliteTable("fixtures", {
     .references(() => squads.id, { onDelete: "cascade" }),
   slug: text("slug").notNull(),
   opponent: text("opponent").notNull(),
+  gameDate: integer("game_date", { mode: "number" }).notNull(),
   deadline: integer("deadline", { mode: "number" }).notNull(),
   createdBy: text("created_by").notNull(),
   createdAt: integer("created_at", { mode: "number" })
@@ -89,4 +90,56 @@ export const votes = sqliteTable("votes", {
   createdAt: integer("created_at", { mode: "number" })
     .notNull()
     .$defaultFn(() => Date.now()),
+});
+
+// ── Better Auth tables (managed by Better Auth CLI; included here so Drizzle push does not drop them) ──
+
+export const user = sqliteTable("user", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  emailVerified: integer("emailVerified", { mode: "number" }).notNull(),
+  image: text("image"),
+  createdAt: integer("createdAt", { mode: "number" }).notNull(),
+  updatedAt: integer("updatedAt", { mode: "number" }).notNull(),
+});
+
+export const session = sqliteTable("session", {
+  id: text("id").primaryKey(),
+  expiresAt: integer("expiresAt", { mode: "number" }).notNull(),
+  token: text("token").notNull(),
+  createdAt: integer("createdAt", { mode: "number" }).notNull(),
+  updatedAt: integer("updatedAt", { mode: "number" }).notNull(),
+  ipAddress: text("ipAddress"),
+  userAgent: text("userAgent"),
+  userId: text("userId")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+});
+
+export const account = sqliteTable("account", {
+  id: text("id").primaryKey(),
+  accountId: text("accountId").notNull(),
+  providerId: text("providerId").notNull(),
+  userId: text("userId")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  accessToken: text("accessToken"),
+  refreshToken: text("refreshToken"),
+  idToken: text("idToken"),
+  accessTokenExpiresAt: integer("accessTokenExpiresAt", { mode: "number" }),
+  refreshTokenExpiresAt: integer("refreshTokenExpiresAt", { mode: "number" }),
+  scope: text("scope"),
+  password: text("password"),
+  createdAt: integer("createdAt", { mode: "number" }).notNull(),
+  updatedAt: integer("updatedAt", { mode: "number" }).notNull(),
+});
+
+export const verification = sqliteTable("verification", {
+  id: text("id").primaryKey(),
+  identifier: text("identifier").notNull(),
+  value: text("value").notNull(),
+  expiresAt: integer("expiresAt", { mode: "number" }).notNull(),
+  createdAt: integer("createdAt", { mode: "number" }).notNull(),
+  updatedAt: integer("updatedAt", { mode: "number" }).notNull(),
 });

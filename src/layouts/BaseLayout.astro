@@ -18,6 +18,7 @@ const { title, noNav } = Astro.props;
     <meta name="description" content="Player of the Match voting app" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{title} | POTM</title>
+    <slot name="head" />
   </head>
   <body class="min-h-screen bg-gray-50 text-gray-900">
     {!noNav && <NavBar user={Astro.locals.user} />}

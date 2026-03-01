@@ -192,25 +192,32 @@ const fixtureList = await getSquadFixtures(squad.id);
         {fixtureList.map((fixture) => {
           const isPast = fixture.deadline < Date.now();
           return (
-            <a
-              href={`/${squad.slug}/fixture/${fixture.slug}`}
-              class="block rounded-lg border border-gray-200 bg-white p-4 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all"
-            >
-              <div class="flex items-center justify-between">
-                <span class="font-medium text-gray-900">vs {fixture.opponent}</span>
-                <span class:list={[
-                  "rounded-full px-2 py-0.5 text-xs font-medium",
-                  isPast
-                    ? "bg-gray-100 text-gray-600"
-                    : "bg-green-100 text-green-700",
-                ]}>
-                  {isPast ? "Closed" : "Voting open"}
-                </span>
-              </div>
-              <p class="mt-1 text-xs text-gray-500">
-                Deadline: {new Date(fixture.deadline).toLocaleString()}
+            <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all">
+              <a href={`/${squad.slug}/fixture/${fixture.slug}`} class="block">
+                <div class="flex items-center justify-between">
+                  <span class="font-medium text-gray-900">vs {fixture.opponent}</span>
+                  <span class:list={[
+                    "rounded-full px-2 py-0.5 text-xs font-medium",
+                    isPast
+                      ? "bg-gray-100 text-gray-600"
+                      : "bg-green-100 text-green-700",
+                  ]}>
+                    {isPast ? "Closed" : "Voting open"}
+                  </span>
+                </div>
+                <p class="mt-1 text-xs text-gray-500">
+                  Deadline: {new Date(fixture.deadline).toLocaleString()}
+                </p>
+              </a>
+              <p class="mt-2">
+                <a
+                  href={`/${squad.slug}/fixture/${fixture.slug}/edit`}
+                  class="text-xs text-indigo-600 hover:text-indigo-700"
+                >
+                  Edit fixture
+                </a>
               </p>
-            </a>
+            </div>
           );
         })}
       </div>

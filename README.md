@@ -37,12 +37,17 @@ npm install
 # Or reuse an existing GCP project
 ./scripts/setup-gcp.sh --project your-project-id
 
-# Generate and apply database migrations
+# Create Better Auth tables first (user, session, account, verification)
+npx auth@latest migrate --config ./src/lib/auth.ts --yes
+
+# Apply schema (app + auth tables; safe to run anytime)
 npx drizzle-kit push
 
 # Start the dev server
 npx astro dev
 ```
+
+For schema changes, edit `src/db/schema.ts` and run `npx drizzle-kit push` again.
 
 The setup script will:
 1. Create a GCP project and enable the People API

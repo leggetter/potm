@@ -54,6 +54,12 @@ const voteUrl = `${Astro.url.origin}/${squad.slug}/fixture/${fixture.slug}/vote`
         </span>
       </p>
     </div>
+    <a
+      href={`/${squad.slug}/fixture/${fixture.slug}/edit`}
+      class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+    >
+      Edit fixture
+    </a>
   </div>
 
   <!-- Shareable Vote Link -->

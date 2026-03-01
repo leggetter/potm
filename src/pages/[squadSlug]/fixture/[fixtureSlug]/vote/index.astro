@@ -1,15 +1,15 @@
 ---
-import BaseLayout from "../../../../layouts/BaseLayout.astro";
-import SquadHeader from "../../../../components/SquadHeader.astro";
-import ResultsDisplay from "../../../../components/ResultsDisplay.astro";
-import { getSquadBySlug, getSquadRole } from "../../../../lib/squads";
+import BaseLayout from "../../../../../layouts/BaseLayout.astro";
+import SquadHeader from "../../../../../components/SquadHeader.astro";
+import ResultsDisplay from "../../../../../components/ResultsDisplay.astro";
+import { getSquadBySlug, getSquadRole } from "../../../../../lib/squads";
 import {
   getFixtureBySlug,
   getFixturePlayers,
   getFixtureResults,
-} from "../../../../lib/fixtures";
-import { db } from "../../../../db";
-import { votes } from "../../../../db/schema";
+} from "../../../../../lib/fixtures";
+import { db } from "../../../../../db";
+import { votes } from "../../../../../db/schema";
 import { and, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
@@ -107,9 +107,22 @@ const winners =
   isPast && results.length > 0
     ? results.filter((r) => r.voteCount === results[0].voteCount && r.voteCount > 0)
     : [];
+
+const siteUrl = import.meta.env.BETTER_AUTH_URL || "http://localhost:4321";
+const voteUrl = `${siteUrl}/${squadSlug}/fixture/${fixtureSlug}/vote`;
+const ogImageUrl = `${voteUrl}/og`;
 ---
 
 <BaseLayout title={`Vote: vs ${fixture.opponent}`}>
+  <Fragment slot="head">
+    <meta property="og:title" content={`${squad.name} vs ${fixture.opponent} — Player of the Match`} />
+    <meta property="og:description" content="Vote for your Player of the Match" />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:url" content={voteUrl} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={`${squad.name} vs ${fixture.opponent}`} />
+    <meta name="twitter:image" content={ogImageUrl} />
+  </Fragment>
   <SquadHeader
     name={squad.name}
     description={squad.description}
@@ -118,6 +131,7 @@ const winners =
 
   <h1 class="text-2xl font-bold text-gray-900 mb-1">vs {fixture.opponent}</h1>
   <p class="text-sm text-gray-500 mb-6">
+    <span class="block mb-1">{new Date(fixture.gameDate).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</span>
     Player of the Match vote
     {isPast && <span class="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">Voting closed</span>}
   </p>

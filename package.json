@@ -1,10 +1,12 @@
 {
   "dependencies": {
     "@astrojs/node": "^9.5.4",
+    "@vercel/og": "^0.9.0",
     "astro": "^5.18.0",
     "better-auth": "^1.5.0",
     "better-sqlite3": "^12.6.2",
-    "drizzle-orm": "^0.45.1"
+    "drizzle-orm": "^0.45.1",
+    "react": "^19.2.4"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.6",
@@ -13,5 +15,9 @@
     "drizzle-kit": "^0.31.9",
     "tailwindcss": "^4.2.1",
     "typescript": "^5.9.3"
+  },
+  "scripts": {
+    "db:push": "drizzle-kit push",
+    "db:auth-migrate": "npx auth@latest migrate --config ./src/lib/auth.ts --yes"
   }
 }

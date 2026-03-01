@@ -22,11 +22,12 @@ All forms use standard HTML form submissions with POST handling in Astro frontma
 
 ### Database
 
-- App tables are defined in `src/db/schema.ts` using Drizzle ORM
-- Better Auth's tables are NOT in the Drizzle schema — use raw SQL via the `sqlite` export from `src/db/index.ts` when joining with Better Auth tables (e.g. `user`)
+- All tables (app + Better Auth) are defined in `src/db/schema.ts`. Auth tables (`user`, `session`, `account`, `verification`) are managed by Better Auth at runtime but included in the schema so `drizzle-kit push` sees them and does not drop them.
+- Use raw SQL via the `sqlite` export from `src/db/index.ts` when joining with Better Auth tables (e.g. `user`).
+- **Schema changes:** run `npx drizzle-kit push` (or `npm run db:push`). Run Better Auth migrate first on a new DB: `npx auth@latest migrate --config ./src/lib/auth.ts --yes`.
 - SQLite pragmas: `journal_mode = WAL`, `foreign_keys = ON`
-- All timestamps are stored as integer (unix milliseconds)
-- Migrations live in `drizzle/` and are generated with `npx drizzle-kit generate`
+- All timestamps are stored as integer (unix milliseconds). Auth tables use the same; Better Auth creates them with compatible types.
+- Optional: migrations in `drizzle/` can be generated with `npx drizzle-kit generate` for versioned SQL; push is the primary workflow. For existing DBs that had nullable `game_date`, run `sqlite3 data/potm.db < drizzle/0002_fixture_game_date_required.sql` once before push.
 
 ### Authentication & Authorization
 
@@ -51,7 +52,8 @@ All forms use standard HTML form submissions with POST handling in Astro frontma
 
 ```bash
 npm install              # Install dependencies
-npx drizzle-kit push     # Apply schema to SQLite
+npx drizzle-kit push     # Apply app schema to SQLite
+npx auth@latest migrate --config ./src/lib/auth.ts --yes  # Create Better Auth tables (user, session, account, verification)
 npx astro dev            # Dev server on :4321
 npx astro build          # Production build
 npx astro check          # Type checking

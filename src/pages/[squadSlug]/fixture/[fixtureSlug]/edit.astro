@@ -1,0 +1,168 @@
+---
+import BaseLayout from "../../../../layouts/BaseLayout.astro";
+import { requireSquadAdmin } from "../../../../lib/squads";
+import { getFixtureBySlug, getFixturePlayers } from "../../../../lib/fixtures";
+import { db } from "../../../../db";
+import { players, fixtures, fixturePlayers } from "../../../../db/schema";
+import { eq, and, isNull } from "drizzle-orm";
+
+const { squadSlug, fixtureSlug } = Astro.params;
+if (!squadSlug || !fixtureSlug) {
+  return new Response("Not found", { status: 404 });
+}
+
+const access = await requireSquadAdmin(squadSlug, Astro.locals.user?.id);
+if (!access) {
+  return new Response("Not found", { status: 404 });
+}
+
+const { squad } = access;
+const fixture = await getFixtureBySlug(squad.id, fixtureSlug);
+if (!fixture) {
+  return new Response("Not found", { status: 404 });
+}
+
+let error = "";
+
+if (Astro.request.method === "POST") {
+  const formData = await Astro.request.formData();
+  const opponent = formData.get("opponent")?.toString().trim();
+  const gameDateStr = formData.get("game_date")?.toString();
+  const deadline = formData.get("deadline")?.toString();
+  const selectedPlayers = formData.getAll("players").map(Number);
+
+  if (!opponent) {
+    error = "Opponent name is required.";
+  } else if (!gameDateStr) {
+    error = "Game date is required.";
+  } else if (!deadline) {
+    error = "Voting deadline is required.";
+  } else if (selectedPlayers.length === 0) {
+    error = "Select at least one player.";
+  } else {
+    const deadlineMs = new Date(deadline).getTime();
+    const gameDateMs = new Date(gameDateStr).getTime();
+
+    db
+      .update(fixtures)
+      .set({
+        opponent,
+        gameDate: gameDateMs,
+        deadline: deadlineMs,
+      })
+      .where(eq(fixtures.id, fixture.id))
+      .run();
+
+    db.delete(fixturePlayers).where(eq(fixturePlayers.fixtureId, fixture.id)).run();
+    for (const playerId of selectedPlayers) {
+      db.insert(fixturePlayers)
+        .values({ fixtureId: fixture.id, playerId })
+        .run();
+    }
+
+    return Astro.redirect(`/${squad.slug}/fixture/${fixture.slug}`);
+  }
+}
+
+const activePlayers = db
+  .select()
+  .from(players)
+  .where(and(eq(players.squadId, squad.id), isNull(players.archivedAt)))
+  .all();
+
+const currentFixturePlayers = await getFixturePlayers(fixture.id);
+const currentPlayerIds = new Set(currentFixturePlayers.map((p) => p.id));
+
+const deadlineLocal = new Date(fixture.deadline);
+const deadlineValue = new Date(deadlineLocal.getTime() - deadlineLocal.getTimezoneOffset() * 60000)
+  .toISOString()
+  .slice(0, 16);
+const gameDateValue = new Date(fixture.gameDate).toISOString().slice(0, 10);
+---
+
+<BaseLayout title={`Edit fixture - ${squad.name}`}>
+  <div class="mb-4">
+    <a href={`/${squad.slug}/fixture/${fixture.slug}`} class="text-sm text-indigo-600 hover:text-indigo-700">
+      &larr; Back to vs {fixture.opponent}
+    </a>
+  </div>
+
+  <h1 class="text-2xl font-bold text-gray-900">Edit fixture</h1>
+  <p class="mt-1 text-sm text-gray-500">vs {fixture.opponent}</p>
+
+  {error && (
+    <div class="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>
+  )}
+
+  <form method="POST" class="mt-6 space-y-4">
+    <div>
+      <label for="opponent" class="block text-sm font-medium text-gray-700">
+        Opponent <span class="text-red-500">*</span>
+      </label>
+      <input
+        type="text"
+        id="opponent"
+        name="opponent"
+        required
+        value={fixture.opponent}
+        class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+        placeholder="e.g. Rovers FC"
+      />
+    </div>
+
+    <div>
+      <label for="game_date" class="block text-sm font-medium text-gray-700">
+        Game date <span class="text-red-500">*</span>
+      </label>
+      <input
+        type="date"
+        id="game_date"
+        name="game_date"
+        required
+        value={gameDateValue}
+        class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+      />
+    </div>
+
+    <div>
+      <label for="deadline" class="block text-sm font-medium text-gray-700">
+        Voting deadline <span class="text-red-500">*</span>
+      </label>
+      <input
+        type="datetime-local"
+        id="deadline"
+        name="deadline"
+        required
+        value={deadlineValue}
+        class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+      />
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-2">
+        Players in this fixture <span class="text-red-500">*</span>
+      </label>
+      <div class="space-y-2">
+        {activePlayers.map((player) => (
+          <label class="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 cursor-pointer hover:border-indigo-300">
+            <input
+              type="checkbox"
+              name="players"
+              value={player.id}
+              checked={currentPlayerIds.has(player.id)}
+              class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <span class="text-sm font-medium text-gray-900">{player.name}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+
+    <button
+      type="submit"
+      class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+    >
+      Save changes
+    </button>
+  </form>
+</BaseLayout>

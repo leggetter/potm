@@ -10,11 +10,14 @@ const { name, description, headerImage } = Astro.props;
 
 <div class="mb-6">
   {headerImage && (
-    <div class="mb-4 overflow-hidden rounded-lg">
+    <div
+      class="mb-4 w-full overflow-hidden rounded-lg bg-gray-100"
+      style="aspect-ratio: 9/4;"
+    >
       <img
         src={`/uploads/${headerImage}`}
         alt={`${name} header`}
-        class="h-32 w-full object-cover sm:h-48"
+        class="h-full w-full object-contain"
       />
     </div>
   )}
