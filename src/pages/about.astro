@@ -17,32 +17,42 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 
     <section>
       <h2 class="text-lg font-semibold text-gray-900">How it works</h2>
+
+      <h3 class="mt-4 text-base font-medium text-gray-900">For admins (setting up)</h3>
       <ol class="mt-2 list-decimal space-y-2 pl-6">
         <li>
-          <strong>Create an account</strong> — Sign in with your Google account
-          to manage your squads.
+          <strong>Create an account</strong> — Sign in with Google to manage your squads.
         </li>
         <li>
-          <strong>Create a squad</strong> — Set up your team with a name,
-          description, and optional header image.
+          <strong>Create a squad</strong> — Name your team, add a description and optional header image.
         </li>
         <li>
-          <strong>Add players</strong> — Add your team's players to the squad
-          roster.
+          <strong>Add players</strong> — Add your team's players to the squad roster.
         </li>
         <li>
-          <strong>Create a fixture</strong> — Add the opponent name, select
-          players, and optionally add details (location, kick-off, kit) and a
-          deadline. You can open voting now or later from the fixture page.
+          <strong>Create a fixture</strong> — Add the opponent, select players, and optionally add details (location, kick-off, kit) and a deadline. You can open voting when you create it or later from the fixture page.
         </li>
         <li>
-          <strong>Open voting and share the link</strong> — When you're ready,
-          open voting (and set a deadline). Copy the fixture link and share it
-          with your team via WhatsApp, email, or wherever your team communicates.
+          <strong>Open voting and share the link</strong> — When you're ready, open voting (set a deadline), copy the fixture link, and share it with your team (WhatsApp, email, etc.).
         </li>
         <li>
-          <strong>View results</strong> — Admins can see live results at any
-          time. Everyone else sees the winner after the voting deadline.
+          <strong>View results</strong> — Admins see live results at any time. After the deadline, everyone can see the winner.
+        </li>
+      </ol>
+
+      <h3 class="mt-4 text-base font-medium text-gray-900">For voters (no account needed)</h3>
+      <ol class="mt-2 list-decimal space-y-2 pl-6">
+        <li>
+          <strong>Get the link</strong> — An admin shares the fixture link with you.
+        </li>
+        <li>
+          <strong>Open the link</strong> — You see the fixture details (opponent, date, venue, kit, etc.). If voting isn't open yet, you'll see a message to check back later.
+        </li>
+        <li>
+          <strong>Vote</strong> — When voting is open, enter your name, pick your player of the match, and submit. One vote per person (we use a cookie to prevent double voting).
+        </li>
+        <li>
+          <strong>After voting</strong> — You see a thanks message. Results (and the winner) are visible to everyone after the voting deadline.
         </li>
       </ol>
     </section>
