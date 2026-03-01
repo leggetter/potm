@@ -1,6 +1,7 @@
 ---
 import BaseLayout from "../../../layouts/BaseLayout.astro";
 import { requireSquadAdmin } from "../../../lib/squads";
+import { getPublicOrigin } from "../../../lib/public-url";
 import { db, sqlite } from "../../../db";
 import { squadAdmins, squadInvites } from "../../../db/schema";
 import { eq, and, isNull } from "drizzle-orm";
@@ -41,7 +42,7 @@ if (Astro.request.method === "POST") {
         })
         .run();
 
-      inviteUrl = `${Astro.url.origin}/${squad.slug}/admins/invite/${token}`;
+      inviteUrl = `${getPublicOrigin(Astro.url.origin)}/${squad.slug}/admins/invite/${token}`;
       success = `Invitation created for ${email}. Share the link below.`;
     }
   } else if (action === "remove_admin" && role === "owner") {

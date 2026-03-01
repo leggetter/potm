@@ -9,6 +9,7 @@ import {
   getFixtureResults,
 } from "../../../../lib/fixtures";
 import { renderDescription } from "../../../../lib/description";
+import { getPublicOrigin } from "../../../../lib/public-url";
 import { db } from "../../../../db";
 import { fixtures, votes } from "../../../../db/schema";
 import { and, eq } from "drizzle-orm";
@@ -144,7 +145,7 @@ const winners =
       )
     : [];
 
-const fixtureUrl = `${Astro.url.origin}/${squad.slug}/fixture/${fixture.slug}`;
+const fixtureUrl = `${getPublicOrigin(Astro.url.origin)}/${squad.slug}/fixture/${fixture.slug}`;
 const ogImageUrl = `${fixtureUrl}/og`;
 
 // Default deadline for "Open voting" form: tomorrow at 23:59 (local), format YYYY-MM-DDTHH:mm
