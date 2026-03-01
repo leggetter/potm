@@ -20,7 +20,9 @@
     "typescript": "^5.9.3"
   },
   "scripts": {
+    "build": "astro build",
     "db:push": "drizzle-kit push",
-    "db:auth-migrate": "npx auth@latest migrate --config ./src/lib/auth.ts --yes"
+    "db:auth-migrate": "npx auth@latest migrate --config ./src/lib/auth.ts --yes",
+    "mirror:fly": "./scripts/restore-to-fly.sh"
   }
 }

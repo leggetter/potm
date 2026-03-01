@@ -59,12 +59,16 @@ Run `./scripts/setup-gcp.sh --help` for all options (`--prod-url`, `--dev-url`, 
 
 ### Environment Variables
 
+Local dev uses `.env`; production uses `.env.production` (and on Fly.io, secrets are set from that file).
+
 | Variable | Description |
 |---|---|
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 | `BETTER_AUTH_SECRET` | Random secret for session signing |
-| `BETTER_AUTH_URL` | App base URL (e.g. `http://localhost:4321`) |
+| `BETTER_AUTH_URL` | App base URL (e.g. `http://localhost:4321` locally; `https://potm-voting.fly.dev` in production) |
+| `DB_PATH` | Optional. SQLite path (default `./data/potm.db`; on Fly set to `/data/potm.db`) |
+| `UPLOAD_DIR` | Optional. Uploads directory (default `./data/uploads`; on Fly set to `/data/uploads` so uploads live on the volume) |
 
 ## Project Structure
 
@@ -119,19 +123,57 @@ data/                                    # Gitignored: DB + uploads
 
 The app includes a `Dockerfile` and `fly.toml` for deployment to [Fly.io](https://fly.io/).
 
+Use **`.env.production`** for production config. The setup script writes it when you create OAuth clients; it should have `BETTER_AUTH_URL` set to your production URL (e.g. `https://potm-voting.fly.dev`).
+
 ```bash
-# Create the app and volume
+# Create the app and volume (add --org YOUR_ORG if needed)
 fly apps create potm-voting
 fly volumes create potm_data --region lhr --size 1
 
-# Set secrets
-fly secrets set GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... BETTER_AUTH_SECRET=... BETTER_AUTH_URL=https://potm-voting.fly.dev
+# Set secrets from .env.production (ensure BETTER_AUTH_URL is your Fly app URL). DB_PATH and UPLOAD_DIR are already set in fly.toml.
+fly secrets set GOOGLE_CLIENT_ID="$(grep GOOGLE_CLIENT_ID .env.production | cut -d= -f2-)" \
+  GOOGLE_CLIENT_SECRET="$(grep GOOGLE_CLIENT_SECRET .env.production | cut -d= -f2-)" \
+  BETTER_AUTH_SECRET="$(grep BETTER_AUTH_SECRET .env.production | cut -d= -f2-)" \
+  BETTER_AUTH_URL="$(grep BETTER_AUTH_URL .env.production | cut -d= -f2-)"
 
 # Deploy
 fly deploy
 ```
 
 The SQLite database and uploaded images are stored on a persistent volume mounted at `/data`.
+
+**Data persistence:** The startup script is additive-only: it never drops or truncates tables. It only (1) creates Better Auth tables if missing (`CREATE TABLE IF NOT EXISTS`), and (2) runs `drizzle-kit push` when the DB has no app tables (fresh volume). So existing users, sessions, squads, and votes are preserved across deploys and restarts. The only way production data is replaced is if you explicitly upload a file as `potm.db.restored` and restart.
+
+**Backups:** To avoid losing auth or app data, back up the volume periodically.
+
+- **Quick backup (DB file):** From your machine, run `./scripts/backup-fly-db.sh` (or `./scripts/backup-fly-db.sh potm-voting`). This downloads `/data/potm.db` to `backups/potm-YYYYMMDD-HHMMSS.db`. The app can stay running; the copy may be a few seconds behind if the DB is busy.
+- **Point-in-time volume snapshot (Fly):** For a consistent snapshot of the whole volume (DB + uploads), use [Fly volume snapshots](https://fly.io/docs/reference/volumes/#creating-a-volume-snapshot): `fly volumes snapshots create vol_XXXXX -a potm-voting` (get the volume ID from `fly volumes list -a potm-voting`). You can create a new volume from a snapshot if you ever need to restore.
+
+**Mirroring local data to Fly (restore):** To make the deployed app use your local DB, run **on your machine** (where `data/potm.db` is your source of truth), not from CI:
+
+```bash
+npm run mirror:fly                   # default app: potm-voting
+./scripts/restore-to-fly.sh my-app   # or pass app name
+```
+
+The script checkpoints the local DB (so one file has all data), validates it (user, squads, verification tables), uploads it to Fly as `potm.db.restored`, and syncs **data/uploads** to **/data/uploads** on the server (so squad header images and other uploads referenced in the DB are present). Then it restarts the app. On startup the app validates the uploaded file; if incomplete it is rejected and the existing DB is unchanged. If valid, the current DB is backed up to `potm.db.before-restore` and the restored file is used. After restore, run the one-off **reassign-by-email** script (see below) so squad admins are reassigned from restored user ids to the user with the same email in the current auth.
+
+**One-off: reassign squad admins by email** (after a restore, or when squads have no active admin):
+
+- Reassigns every `squad_admins` row so the referenced user is the "canonical" user for that email (same-email users are consolidated: prefer the one with a session, else latest `updatedAt`). Run once on the **deployed** DB (e.g. via `fly ssh console`).
+- Squads with no admin in the `user` table (orphans) can be assigned to a user by email by setting `ORPHAN_SQUAD_OWNER_EMAIL`.
+
+```bash
+# From your machine (run on the Fly app's filesystem via SSH)
+fly ssh console -a potm-voting -C "sh -c 'DB_PATH=/data/potm.db node /app/scripts/reassign-squad-admins-by-email.js'"
+
+# Assign orphan squads to a specific email
+fly ssh console -a potm-voting -C "sh -c 'ORPHAN_SQUAD_OWNER_EMAIL=phil@leggetter.co.uk DB_PATH=/data/potm.db node /app/scripts/reassign-squad-admins-by-email.js'"
+```
+
+The script is included in the Docker image, so deploy first (`fly deploy`) if you added it recently.
+
+**If you get 403 when signing in:** ensure (1) `BETTER_AUTH_URL` is set to your app URL with no trailing slash (e.g. `https://potm-voting.fly.dev`), and (2) in [Google Cloud Console](https://console.cloud.google.com/apis/credentials) your OAuth client has this authorized redirect URI: `https://YOUR_APP_URL/api/auth/callback/google`.
 
 ## License
 

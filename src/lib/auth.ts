@@ -1,10 +1,22 @@
 import { betterAuth } from "better-auth";
 import { sqlite } from "../db";
 
-// Astro/Vite load .env into import.meta.env, not process.env
-const baseURL = import.meta.env.BETTER_AUTH_URL || "http://localhost:4321";
-const googleClientId = import.meta.env.GOOGLE_CLIENT_ID;
-const googleClientSecret = import.meta.env.GOOGLE_CLIENT_SECRET;
+// Use process.env at runtime (Fly secrets, production); fallback to import.meta.env (Vite dev/build from .env)
+const baseURL =
+  process.env.BETTER_AUTH_URL ||
+  (import.meta as unknown as { env?: { BETTER_AUTH_URL?: string } }).env?.BETTER_AUTH_URL ||
+  "http://localhost:4321";
+// Normalize for trustedOrigins (no trailing slash); 403 on sign-in often means origin not trusted
+const normalizedBase = baseURL.replace(/\/$/, "");
+const googleClientId =
+  process.env.GOOGLE_CLIENT_ID ||
+  (import.meta as unknown as { env?: { GOOGLE_CLIENT_ID?: string } }).env?.GOOGLE_CLIENT_ID;
+const googleClientSecret =
+  process.env.GOOGLE_CLIENT_SECRET ||
+  (import.meta as unknown as { env?: { GOOGLE_CLIENT_SECRET?: string } }).env?.GOOGLE_CLIENT_SECRET;
+const secret =
+  process.env.BETTER_AUTH_SECRET ||
+  (import.meta as unknown as { env?: { BETTER_AUTH_SECRET?: string } }).env?.BETTER_AUTH_SECRET;
 
 if (!googleClientId || !googleClientSecret) {
   throw new Error(
@@ -20,7 +32,7 @@ export const auth = betterAuth({
       clientSecret: googleClientSecret,
     },
   },
-  secret: import.meta.env.BETTER_AUTH_SECRET,
-  baseURL,
-  trustedOrigins: [baseURL],
+  secret: secret ?? "change-me",
+  baseURL: normalizedBase,
+  trustedOrigins: [normalizedBase, baseURL],
 });

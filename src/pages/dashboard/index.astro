@@ -23,12 +23,14 @@ const squads = await getUserSquads(Astro.locals.user.id);
   {squads.length === 0 ? (
     <div class="mt-8 rounded-lg border-2 border-dashed border-gray-300 p-8 text-center">
       <p class="text-gray-600">You don't have any squads yet.</p>
-      <a
-        href="/new"
-        class="mt-4 inline-block rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-      >
-        Create your first squad
-      </a>
+      <div class="mt-4 flex flex-wrap items-center justify-center gap-4">
+        <a
+          href="/new"
+          class="inline-block rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+        >
+          Create your first squad
+        </a>
+      </div>
     </div>
   ) : (
     <div class="mt-6 space-y-4">

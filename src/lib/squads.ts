@@ -61,3 +61,4 @@ export async function getUserSquads(userId: string) {
     .where(eq(squadAdmins.userId, userId))
     .all();
 }
+

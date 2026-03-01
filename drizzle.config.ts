@@ -2,7 +2,7 @@ import { mkdirSync, existsSync } from "fs";
 import { dirname } from "path";
 import { defineConfig } from "drizzle-kit";
 
-const dbPath = "./data/potm.db";
+const dbPath = process.env.DB_PATH || "./data/potm.db";
 if (!existsSync(dirname(dbPath))) {
   mkdirSync(dirname(dbPath), { recursive: true });
 }

@@ -39,17 +39,38 @@ const redirect = Astro.url.searchParams.get("redirect") || "/dashboard";
   </div>
   <script is:inline define:vars={{ redirect }}>
     document.getElementById("google-signin").addEventListener("click", async () => {
-      const res = await fetch("/api/auth/sign-in/social", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "google",
-          callbackURL: redirect,
-        }),
-      });
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
+      const btn = document.getElementById("google-signin");
+      btn.disabled = true;
+      try {
+        const res = await fetch("/api/auth/sign-in/social", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            provider: "google",
+            callbackURL: redirect,
+          }),
+        });
+        const text = await res.text();
+        let data = null;
+        try {
+          data = text ? JSON.parse(text) : null;
+        } catch (_) {
+          console.error("Auth response not JSON:", text);
+          alert("Sign-in failed. The server returned an error. Check the console or try again.");
+          btn.disabled = false;
+          return;
+        }
+        if (res.ok && data && data.url) {
+          window.location.href = data.url;
+        } else {
+          const msg = (data && data.message) || (data && data.error) || ("Sign-in failed (" + res.status + ").");
+          alert(msg);
+          btn.disabled = false;
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Sign-in failed. Check your connection and try again.");
+        btn.disabled = false;
       }
     });
   </script>

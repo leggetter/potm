@@ -2,6 +2,10 @@
 
 Guidelines for AI agents working on this codebase.
 
+## Running commands
+
+**Prefer running commands yourself.** Do not prompt the user to run commands in their terminal. When a task requires installs, builds, deploys, or remote operations (e.g. Fly.io), run them in the tool: use the shell with the permissions the command needs (e.g. `network`, `all` for Fly CLI or write access). Request elevated privileges when needed rather than asking the user to run the command.
+
 ## Project Overview
 
 POTM is a "Player of the Match" voting app built with Astro (SSR) + SQLite + Drizzle ORM + Better Auth + Tailwind CSS v4.
@@ -65,9 +69,13 @@ npx astro check          # Type checking
 - `src/components/` — Reusable Astro components
 - `src/layouts/` — Page layout wrapper
 - `src/pages/` — File-based routing
+- `scripts/` — Restore and Fly startup: `restore-to-fly.sh` (mirror:fly; uses checkpoint-db.js, validate-restored-db.js), `fly-start.sh` (Docker CMD; uses validate-restored-db.js, has-table.js, ensure-auth-tables.js), `reassign-squad-admins-by-email.js` (one-off on server), `backup-fly-db.sh`, `setup-gcp.sh`
 
 ## Things to Watch Out For
 
+- **Production data:** Fly startup (`scripts/fly-start.sh`) is additive-only: it never drops or truncates tables. Do not add startup steps that delete or overwrite existing DB data. For schema changes that might be destructive, back up first (e.g. `./scripts/backup-fly-db.sh`) or use Fly volume snapshots.
+- **Restore and WAL:** Restore uploads a single SQLite file. If the local DB is in WAL mode, the main file alone can be inconsistent (recent data may be only in the `-wal` file). `restore-to-fly.sh` runs `scripts/checkpoint-db.js` first so the main file contains all data before upload; do not remove that step.
+- **Fly scale-to-zero:** With `min_machines_running = 0`, scaling to zero destroys machines. Scaling back up creates new machines, which get new volumes by default, so existing volume data can be effectively "lost" (old volume may be unattached). Prefer `min_machines_running = 1` for production if you need to avoid that risk.
 - Drizzle's `.where()` does NOT stack — use `and()` / `or()` to combine conditions
 - Better Auth's sign-in and sign-out are POST endpoints, not GET
 - **Voting**: `fixtures.votingOpenedAt` — when set, voting is open; `deadline` is optional until voting is opened, then required. Admins can "Turn off voting" (set `votingOpenedAt` to null).

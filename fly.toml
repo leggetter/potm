@@ -6,6 +6,8 @@ primary_region = "lhr"
 [env]
   PORT = "3000"
   HOST = "0.0.0.0"
+  DB_PATH = "/data/potm.db"
+  UPLOAD_DIR = "/data/uploads"
 
 [http_service]
   internal_port = 3000
