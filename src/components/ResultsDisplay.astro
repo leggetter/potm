@@ -31,7 +31,7 @@ const totalVotes = results.reduce((sum, r) => sum + r.voteCount, 0);
             )}
           </span>
           <span class="text-gray-600">
-            {result.voteCount} {result.voteCount === 1 ? "vote" : "votes"}
+            {`${result.voteCount} ${result.voteCount === 1 ? "vote" : "votes"}`}
           </span>
         </div>
         <div class="mt-1 h-4 overflow-hidden rounded-full bg-gray-200">
@@ -50,6 +50,6 @@ const totalVotes = results.reduce((sum, r) => sum + r.voteCount, 0);
         )}
       </div>
     ))}
-    <p class="text-sm text-gray-500">{totalVotes} total {totalVotes === 1 ? "vote" : "votes"}</p>
+    <p class="text-sm text-gray-500">{`${totalVotes} total ${totalVotes === 1 ? "vote" : "votes"}`}</p>
   </div>
 )}

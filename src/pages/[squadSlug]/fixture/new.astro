@@ -232,10 +232,26 @@ const activePlayers = db
     const deadlineInput = document.getElementById("deadline");
     const requiredSpan = document.getElementById("deadline-required");
     if (!votingOpen || !deadlineInput || !requiredSpan) return;
+
+    function tomorrowAt2359() {
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      d.setHours(23, 59, 0, 0);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      const h = String(d.getHours()).padStart(2, "0");
+      const min = String(d.getMinutes()).padStart(2, "0");
+      return y + "-" + m + "-" + day + "T" + h + ":" + min;
+    }
+
     function update() {
-      const required = votingOpen.checked;
-      deadlineInput.required = required;
-      requiredSpan.classList.toggle("hidden", !required);
+      const checked = votingOpen.checked;
+      deadlineInput.required = checked;
+      requiredSpan.classList.toggle("hidden", !checked);
+      if (checked && !deadlineInput.value.trim()) {
+        deadlineInput.value = tomorrowAt2359();
+      }
     }
     votingOpen.addEventListener("change", update);
     update();
