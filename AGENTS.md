@@ -80,4 +80,4 @@ npx astro check          # Type checking
 - Better Auth's sign-in and sign-out are POST endpoints, not GET
 - **Voting**: `fixtures.votingOpenedAt` — when set, voting is open; `deadline` is optional until voting is opened, then required. Admins can "Turn off voting" (set `votingOpenedAt` to null).
 - The `potm_voter` cookie (UUID, 1-year) is the stable browser identifier for vote deduplication; `voted_{fixture_id}` is the per-fixture "already voted" flag
-- Squad slugs are permanent — changing the squad name does not change the slug
+- Squad slugs have a human-readable prefix (from the name) and a short unique ID suffix; changing the squad name updates the prefix and redirects to the new URL; the ID stays the same

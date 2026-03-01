@@ -1,6 +1,6 @@
 ---
 import BaseLayout from "../../layouts/BaseLayout.astro";
-import { requireSquadAdmin, getSquadBySlug } from "../../lib/squads";
+import { requireSquadAdmin, getSquadBySlug, slugWithNewName } from "../../lib/squads";
 import { db } from "../../db";
 import { squads } from "../../db/schema";
 import { eq } from "drizzle-orm";
@@ -45,11 +45,15 @@ if (Astro.request.method === "POST") {
       }
 
       if (!error) {
+        const newSlug = slugWithNewName(squad.slug, name);
         db.update(squads)
-          .set({ name, description, headerImage })
+          .set({ name, description, headerImage, slug: newSlug })
           .where(eq(squads.id, squad.id))
           .run();
         success = "Squad updated.";
+        if (newSlug !== squad.slug) {
+          return Astro.redirect(`/${newSlug}/settings`);
+        }
       }
     }
   } else if (action === "remove_image") {
@@ -97,6 +101,9 @@ const currentSquad = await getSquadBySlug(squadSlug) || squad;
       <label for="name" class="block text-sm font-medium text-gray-700">
         Squad name <span class="text-red-500">*</span>
       </label>
+      <p class="mt-0.5 text-xs text-gray-500">
+        The readable part of the squad URL updates with the name; the unique ID at the end stays the same.
+      </p>
       <input
         type="text"
         id="name"
@@ -127,18 +134,15 @@ const currentSquad = await getSquadBySlug(squadSlug) || squad;
         Recommended: 1200x400px landscape image (3:1 ratio). JPEG, PNG, or WebP, max 2MB.
       </p>
       {currentSquad.headerImage && (
-        <div class="mt-2">
+        <div
+          class="mt-2 w-full overflow-hidden rounded-lg bg-gray-100"
+          style="aspect-ratio: 9/4;"
+        >
           <img
             src={`/uploads/${currentSquad.headerImage}`}
             alt="Current header"
-            class="h-24 w-full rounded-lg object-cover"
+            class="h-full w-full object-contain"
           />
-          <form method="POST" class="mt-1">
-            <input type="hidden" name="action" value="remove_image" />
-            <button type="submit" class="text-xs text-red-600 hover:text-red-700">
-              Remove image
-            </button>
-          </form>
         </div>
       )}
       <input
@@ -157,6 +161,15 @@ const currentSquad = await getSquadBySlug(squadSlug) || squad;
       Save changes
     </button>
   </form>
+
+  {currentSquad.headerImage && (
+    <form method="POST" class="mt-2">
+      <input type="hidden" name="action" value="remove_image" />
+      <button type="submit" class="text-sm text-red-600 hover:text-red-700">
+        Remove header image
+      </button>
+    </form>
+  )}
 
   {role === "owner" && (
     <div class="mt-12 border-t border-gray-200 pt-6">

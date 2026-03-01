@@ -37,13 +37,32 @@ export async function requireSquadAdmin(
   return { squad, role };
 }
 
-export function generateSlug(name: string): string {
-  const base = name
+const SLUG_SHORT_ID_LENGTH = 6;
+
+function slugPrefixFromName(name: string): string {
+  return name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
-  const shortId = Math.random().toString(36).substring(2, 8);
+}
+
+export function generateSlug(name: string): string {
+  const base = slugPrefixFromName(name);
+  const shortId = Math.random().toString(36).substring(2, 2 + SLUG_SHORT_ID_LENGTH);
   return `${base}-${shortId}`;
+}
+
+/**
+ * Returns the new slug when updating the squad name: same shortId (unique id in URL), new prefix from name.
+ */
+export function slugWithNewName(currentSlug: string, newName: string): string {
+  const parts = currentSlug.split("-");
+  const shortId = parts.pop();
+  if (!shortId || shortId.length !== SLUG_SHORT_ID_LENGTH) {
+    return currentSlug;
+  }
+  const prefix = slugPrefixFromName(newName) || "squad";
+  return `${prefix}-${shortId}`;
 }
 
 export async function getUserSquads(userId: string) {

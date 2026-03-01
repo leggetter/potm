@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+button { cursor: pointer; }
+
 .description-richtext p { margin: 0.25rem 0; }
 .description-richtext p:first-child { margin-top: 0; }
 .description-richtext p:last-child { margin-bottom: 0; }
