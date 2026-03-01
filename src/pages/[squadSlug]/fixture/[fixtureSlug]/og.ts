@@ -1,9 +1,9 @@
 import type { APIRoute } from "astro";
 import { ImageResponse } from "@vercel/og";
 import React from "react";
-import { getSquadBySlug } from "../../../../../lib/squads";
-import { getFixtureBySlug } from "../../../../../lib/fixtures";
-import { getUploadPath } from "../../../../../lib/uploads";
+import { getSquadBySlug } from "../../../../lib/squads";
+import { getFixtureBySlug } from "../../../../lib/fixtures";
+import { getUploadPath } from "../../../../lib/uploads";
 import * as fs from "node:fs";
 import * as path from "node:path";
 

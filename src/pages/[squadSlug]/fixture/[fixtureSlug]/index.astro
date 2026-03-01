@@ -2,31 +2,165 @@
 import BaseLayout from "../../../../layouts/BaseLayout.astro";
 import SquadHeader from "../../../../components/SquadHeader.astro";
 import ResultsDisplay from "../../../../components/ResultsDisplay.astro";
-import { requireSquadAdmin } from "../../../../lib/squads";
-import { getFixtureBySlug, getFixtureResults } from "../../../../lib/fixtures";
+import { getSquadBySlug, requireSquadAdmin } from "../../../../lib/squads";
+import {
+  getFixtureBySlug,
+  getFixturePlayers,
+  getFixtureResults,
+} from "../../../../lib/fixtures";
+import { renderDescription } from "../../../../lib/description";
+import { db } from "../../../../db";
+import { fixtures, votes } from "../../../../db/schema";
+import { and, eq } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 
 const { squadSlug, fixtureSlug } = Astro.params;
 if (!squadSlug || !fixtureSlug) {
   return new Response("Not found", { status: 404 });
 }
 
-const access = await requireSquadAdmin(squadSlug, Astro.locals.user?.id);
-if (!access) {
+const squad = await getSquadBySlug(squadSlug);
+if (!squad) {
   return new Response("Not found", { status: 404 });
 }
 
-const { squad } = access;
 const fixture = await getFixtureBySlug(squad.id, fixtureSlug);
 if (!fixture) {
   return new Response("Not found", { status: 404 });
 }
 
-const results = await getFixtureResults(fixture.id);
-const isPast = fixture.deadline < Date.now();
-const voteUrl = `${Astro.url.origin}/${squad.slug}/fixture/${fixture.slug}/vote`;
+const votingOpen = fixture.votingOpenedAt != null;
+const hasDeadline = fixture.deadline != null;
+const isPast = votingOpen && hasDeadline && fixture.deadline! < Date.now();
+
+const access = await requireSquadAdmin(squadSlug, Astro.locals.user?.id);
+const isAdmin = !!access;
+
+const votedCookie = Astro.cookies.get(`voted_${fixture.id}`)?.value;
+let justVoted = false;
+let error = "";
+
+// POST: Open voting / Turn off voting (admin only)
+if (Astro.request.method === "POST" && isAdmin) {
+  const formData = await Astro.request.formData();
+  const action = formData.get("action")?.toString();
+  if (action === "close_voting" && votingOpen) {
+    db
+      .update(fixtures)
+      .set({ votingOpenedAt: null })
+      .where(eq(fixtures.id, fixture.id))
+      .run();
+    return Astro.redirect(`/${squad.slug}/fixture/${fixture.slug}`);
+  }
+  if (action === "open_voting" && !votingOpen) {
+    const deadline = formData.get("deadline")?.toString();
+    if (!deadline) {
+      error = "Voting deadline is required when opening voting.";
+    } else {
+      const deadlineMs = new Date(deadline).getTime();
+      if (deadlineMs <= Date.now()) {
+        error = "Deadline must be in the future.";
+      } else {
+        db
+          .update(fixtures)
+          .set({ votingOpenedAt: Date.now(), deadline: deadlineMs })
+          .where(eq(fixtures.id, fixture.id))
+          .run();
+        return Astro.redirect(`/${squad.slug}/fixture/${fixture.slug}`);
+      }
+    }
+  }
+}
+
+// POST: Vote submission (when voting open and before deadline; skip if we already set error from open_voting)
+if (Astro.request.method === "POST" && !error && votingOpen && !isPast && !votedCookie && !justVoted) {
+  const formData = await Astro.request.formData();
+  const voteAction = formData.get("action")?.toString();
+  if (voteAction === "vote") {
+    const voterName = formData.get("voter_name")?.toString().trim();
+    const playerId = Number(formData.get("player_id"));
+
+    if (!voterName) {
+      error = "Please enter your name.";
+    } else if (!playerId) {
+      error = "Please select a player.";
+    } else {
+      let voterToken = Astro.cookies.get("potm_voter")?.value;
+      if (!voterToken) {
+        voterToken = randomUUID();
+        Astro.cookies.set("potm_voter", voterToken, {
+          path: "/",
+          maxAge: 365 * 24 * 60 * 60,
+          httpOnly: true,
+          sameSite: "lax",
+        });
+      }
+
+      const existing = db
+        .select()
+        .from(votes)
+        .where(
+          and(
+            eq(votes.fixtureId, fixture.id),
+            eq(votes.voterToken, voterToken)
+          )
+        )
+        .get();
+
+      if (existing) {
+        error = "You have already voted for this fixture.";
+      } else {
+        db.insert(votes)
+          .values({
+            fixtureId: fixture.id,
+            playerId,
+            voterName,
+            voterToken,
+          })
+          .run();
+
+        Astro.cookies.set(`voted_${fixture.id}`, "1", {
+          path: "/",
+          maxAge: 365 * 24 * 60 * 60,
+          httpOnly: true,
+          sameSite: "lax",
+        });
+
+        justVoted = true;
+      }
+    }
+  }
+}
+
+const hasVoted = !!votedCookie || justVoted;
+
+const fixturePlayers =
+  votingOpen && !isPast && !hasVoted
+    ? await getFixturePlayers(fixture.id)
+    : [];
+const results =
+  isPast || isAdmin
+    ? await getFixtureResults(fixture.id)
+    : [];
+const winners =
+  isPast && results.length > 0
+    ? results.filter((r) => r.voteCount === results[0].voteCount && r.voteCount > 0)
+    : [];
+
+const fixtureUrl = `${Astro.url.origin}/${squad.slug}/fixture/${fixture.slug}`;
+const ogImageUrl = `${fixtureUrl}/og`;
 ---
 
 <BaseLayout title={`vs ${fixture.opponent} - ${squad.name}`}>
+  <Fragment slot="head">
+    <meta property="og:title" content={`${squad.name} vs ${fixture.opponent} — Player of the Match`} />
+    <meta property="og:description" content={votingOpen ? "Vote for your Player of the Match" : "Fixture details"} />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:url" content={fixtureUrl} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={`${squad.name} vs ${fixture.opponent}`} />
+    <meta name="twitter:image" content={ogImageUrl} />
+  </Fragment>
   <SquadHeader
     name={squad.name}
     description={squad.description}
@@ -39,61 +173,209 @@ const voteUrl = `${Astro.url.origin}/${squad.slug}/fixture/${fixture.slug}/vote`
     </a>
   </div>
 
-  <div class="flex items-center justify-between mb-6">
+  <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
     <div>
       <h1 class="text-2xl font-bold text-gray-900">vs {fixture.opponent}</h1>
       <p class="text-sm text-gray-500">
-        Deadline: {new Date(fixture.deadline).toLocaleString()}
-        <span class:list={[
-          "ml-2 rounded-full px-2 py-0.5 text-xs font-medium",
-          isPast
-            ? "bg-gray-100 text-gray-600"
-            : "bg-green-100 text-green-700",
-        ]}>
-          {isPast ? "Closed" : "Voting open"}
-        </span>
+        {new Date(fixture.gameDate).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+        {votingOpen && hasDeadline && (
+          <>
+            <span class="mx-2">·</span>
+            Deadline: {new Date(fixture.deadline!).toLocaleString()}
+            <span class:list={[
+              "ml-2 rounded-full px-2 py-0.5 text-xs font-medium",
+              isPast ? "bg-gray-100 text-gray-600" : "bg-green-100 text-green-700",
+            ]}>
+              {isPast ? "Closed" : "Voting open"}
+            </span>
+          </>
+        )}
+        {!votingOpen && (
+          <span class="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+            POTM: Voting not open yet
+          </span>
+        )}
+      </p>
+      {fixture.description && (
+        <div
+          class="mt-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 description-richtext"
+          set:html={renderDescription(fixture.description)}
+        />
+      )}
+    </div>
+    {isAdmin && (
+      <a
+        href={`/${squad.slug}/fixture/${fixture.slug}/edit`}
+        class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+      >
+        Edit fixture
+      </a>
+    )}
+  </div>
+
+  <!-- Admin: Open voting (when not yet open) -->
+  {isAdmin && !votingOpen && (
+    <div class="mb-6 rounded-lg bg-amber-50 border border-amber-200 p-4">
+      <h2 class="text-sm font-semibold text-amber-900 mb-2">Open voting</h2>
+      <p class="text-sm text-amber-800 mb-3">Set a deadline and open voting so the link can be shared.</p>
+      {error && <p class="mb-2 text-sm text-red-600">{error}</p>}
+      <form method="POST" class="flex flex-wrap items-end gap-3">
+        <input type="hidden" name="action" value="open_voting" />
+        <div>
+          <label for="deadline" class="block text-xs font-medium text-amber-900">Voting deadline</label>
+          <input
+            type="datetime-local"
+            id="deadline"
+            name="deadline"
+            required
+            class="mt-1 rounded border border-amber-300 px-2 py-1.5 text-sm"
+          />
+        </div>
+        <button
+          type="submit"
+          class="rounded bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
+        >
+          Open voting
+        </button>
+      </form>
+    </div>
+  )}
+
+  <!-- Admin: Share link (when voting open or admin always) -->
+  {isAdmin && (
+    <div class="mb-6 rounded-lg bg-indigo-50 p-4">
+      <p class="text-sm font-medium text-indigo-700">Share the fixture link:</p>
+      <div class="mt-1 flex gap-2 flex-wrap">
+        <input
+          type="text"
+          readonly
+          value={fixtureUrl}
+          id="fixture-url"
+          class="flex-1 min-w-[200px] rounded border border-indigo-200 bg-white px-2 py-1 text-xs"
+        />
+        <button
+          id="copy-fixture-url"
+          type="button"
+          class="rounded bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700"
+        >
+          Copy
+        </button>
+      </div>
+    </div>
+  )}
+
+  <!-- Admin: Turn off voting (when voting is open) -->
+  {isAdmin && votingOpen && (
+    <div class="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
+      <form method="POST">
+        <input type="hidden" name="action" value="close_voting" />
+        <p class="text-sm text-amber-800 mb-2">Voting is currently open. If you opened it by mistake, you can turn it off. The deadline will be kept for when you open voting again.</p>
+        <button
+          type="submit"
+          class="rounded border border-amber-600 bg-white px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-100"
+        >
+          Turn off voting
+        </button>
+      </form>
+    </div>
+  )}
+
+  <!-- Public / voter content -->
+  {error && (
+    <div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>
+  )}
+
+  {!votingOpen && !isAdmin && (
+    <p class="text-gray-500">POTM voting is not open yet. Check back later.</p>
+  )}
+
+  {votingOpen && isPast ? (
+    <section>
+      {winners.length === 0 ? (
+        <p class="text-gray-500">No votes were cast.</p>
+      ) : (
+        <div class="rounded-lg border-2 border-yellow-300 bg-yellow-50 p-6 text-center">
+          <p class="text-sm font-medium text-yellow-800 uppercase tracking-wide">
+            Player of the Match
+          </p>
+          {winners.map((winner) => (
+            <p class="mt-2 text-2xl font-bold text-gray-900">{winner.playerName}</p>
+          ))}
+          <span class="mt-3 inline-block rounded-full bg-yellow-200 px-3 py-1 text-sm font-semibold text-yellow-900">
+            POTM Winner{winners.length > 1 ? "s" : ""}
+          </span>
+        </div>
+      )}
+      {isAdmin && results.length > 0 && (
+        <div class="mt-6">
+          <h2 class="text-lg font-semibold text-gray-900 mb-3">Full Results</h2>
+          <ResultsDisplay results={results} showVoters={true} />
+        </div>
+      )}
+    </section>
+  ) : votingOpen && hasVoted ? (
+    <div class="rounded-lg border-2 border-green-200 bg-green-50 p-6 text-center">
+      <p class="text-lg font-semibold text-green-700">Thanks for voting!</p>
+      <p class="mt-2 text-sm text-green-600">
+        {hasDeadline
+          ? `Results will be available after ${new Date(fixture.deadline!).toLocaleString()}.`
+          : "Results will be available after voting closes."}
       </p>
     </div>
-    <a
-      href={`/${squad.slug}/fixture/${fixture.slug}/edit`}
-      class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-    >
-      Edit fixture
-    </a>
-  </div>
-
-  <!-- Shareable Vote Link -->
-  <div class="mb-6 rounded-lg bg-indigo-50 p-4">
-    <p class="text-sm font-medium text-indigo-700">Share the voting link:</p>
-    <div class="mt-1 flex gap-2">
-      <input
-        type="text"
-        readonly
-        value={voteUrl}
-        id="vote-url"
-        class="flex-1 rounded border border-indigo-200 bg-white px-2 py-1 text-xs"
-      />
+  ) : votingOpen && fixturePlayers.length > 0 ? (
+    <form method="POST" class="space-y-4">
+      <input type="hidden" name="action" value="vote" />
+      <div>
+        <label for="voter_name" class="block text-sm font-medium text-gray-700">
+          Your name <span class="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          id="voter_name"
+          name="voter_name"
+          required
+          class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+          placeholder="Enter your name"
+        />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-2">
+          Who was Player of the Match? <span class="text-red-500">*</span>
+        </label>
+        <div class="space-y-2">
+          {fixturePlayers.map((player) => (
+            <label class="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-4 cursor-pointer hover:border-indigo-300 active:bg-indigo-50">
+              <input
+                type="radio"
+                name="player_id"
+                value={player.id}
+                required
+                class="h-5 w-5 border-gray-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <span class="text-base font-medium text-gray-900">{player.name}</span>
+            </label>
+          ))}
+        </div>
+      </div>
       <button
-        id="copy-vote-url"
-        class="rounded bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700"
+        type="submit"
+        class="w-full rounded-lg bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
       >
-        Copy
+        Submit vote
       </button>
-    </div>
-  </div>
-
-  <!-- Full Results (admin always sees) -->
-  <section>
-    <h2 class="text-lg font-semibold text-gray-900 mb-3">Results</h2>
-    <ResultsDisplay results={results} showVoters={true} />
-  </section>
+    </form>
+  ) : votingOpen && fixturePlayers.length === 0 ? (
+    <p class="text-gray-500">No players in this fixture.</p>
+  ) : null}
 </BaseLayout>
 
 <script is:inline>
-  document.getElementById("copy-vote-url")?.addEventListener("click", () => {
-    const input = document.getElementById("vote-url");
+  document.getElementById("copy-fixture-url")?.addEventListener("click", () => {
+    const input = document.getElementById("fixture-url");
+    if (!input) return;
     input.select();
     navigator.clipboard.writeText(input.value);
-    document.getElementById("copy-vote-url").textContent = "Copied!";
+    const btn = document.getElementById("copy-fixture-url");
+    if (btn) btn.textContent = "Copied!";
   });
 </script>

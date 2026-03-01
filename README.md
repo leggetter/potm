@@ -6,9 +6,9 @@ A simple voting app for sports teams. After a match, share a link with your team
 
 - **Squad management** — Create squads, add players, upload a header image
 - **Multi-admin** — Invite others to help manage your squad via shareable invite links
-- **Fixture creation** — Set up matches with opponent name, player selection, and voting deadline
-- **Public voting** — Anyone with the link can vote (name + player pick). Cookie-based deduplication prevents double votes
-- **Results** — Admins see full breakdown (vote counts, voter names, bar chart) at any time. Public sees winner(s) only after the deadline
+- **Fixture creation** — Set up matches with opponent name, player selection, optional details (markdown), and optional deadline. You can open voting when creating or later from the fixture page.
+- **Voting** — Admins open voting (and set a deadline) when ready. One link per fixture: before voting opens visitors see fixture info; when open they can vote (name + player pick). Cookie-based deduplication prevents double votes. You can turn off voting if opened by mistake.
+- **Results** — Admins see full breakdown (vote counts, voter names, bar chart) at any time. Public sees winner(s) only after the deadline.
 
 ## Tech Stack
 
@@ -40,7 +40,7 @@ npm install
 # Create Better Auth tables first (user, session, account, verification)
 npx auth@latest migrate --config ./src/lib/auth.ts --yes
 
-# Apply schema (app + auth tables; safe to run anytime)
+# Apply schema (app tables). For existing DBs with schema changes, run migrations in drizzle/ if needed.
 npx drizzle-kit push
 
 # Start the dev server
@@ -79,12 +79,14 @@ src/
     squads.ts          # Squad access control helpers
     fixtures.ts        # Fixture creation and results queries
     uploads.ts         # Image upload validation and storage
+    description.ts     # Markdown description rendering
   layouts/
     BaseLayout.astro   # HTML shell + Tailwind
   components/
     NavBar.astro       # Top nav with auth state
     SquadHeader.astro  # Squad header image + name
     ResultsDisplay.astro # Vote results bar chart
+    DescriptionEditor.astro # Markdown toolbar for fixture details
   pages/
     index.astro                          # Landing page
     login.astro                          # Google sign-in
@@ -102,8 +104,12 @@ src/
       fixture/
         new.astro                        # Create fixture
         [fixtureSlug]/
-          index.astro                    # Admin results view
-          vote.astro                     # Public voting page
+          index.astro                    # Single page: info / vote / results (by state)
+          og.ts                          # OG image for sharing
+          edit.astro                     # Edit fixture (admin)
+      player/
+        [playerId]/
+          edit.astro                     # Edit player name (admin)
 data/                                    # Gitignored: DB + uploads
   potm.db
   uploads/

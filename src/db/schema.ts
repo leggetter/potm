@@ -59,8 +59,10 @@ export const fixtures = sqliteTable("fixtures", {
     .references(() => squads.id, { onDelete: "cascade" }),
   slug: text("slug").notNull(),
   opponent: text("opponent").notNull(),
+  description: text("description"),
   gameDate: integer("game_date", { mode: "number" }).notNull(),
-  deadline: integer("deadline", { mode: "number" }).notNull(),
+  deadline: integer("deadline", { mode: "number" }),
+  votingOpenedAt: integer("voting_opened_at", { mode: "number" }),
   createdBy: text("created_by").notNull(),
   createdAt: integer("created_at", { mode: "number" })
     .notNull()

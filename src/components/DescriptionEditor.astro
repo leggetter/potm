@@ -1,0 +1,66 @@
+---
+interface Props {
+  name?: string;
+  id?: string;
+  value?: string;
+  placeholder?: string;
+  rows?: number;
+}
+
+const { name = "description", id = "description", value = "", placeholder = "Use the buttons or type **bold**, *italic*, or - list items…", rows = 5 } = Astro.props;
+---
+
+<div class="description-editor">
+  <div class="mb-1 flex flex-wrap gap-1 rounded-t-lg border border-b-0 border-gray-300 bg-gray-100 px-2 py-1.5">
+    <button type="button" data-cmd="bold" class="rounded px-2 py-1 text-sm font-bold hover:bg-gray-200" title="Bold">B</button>
+    <button type="button" data-cmd="italic" class="rounded px-2 py-1 text-sm italic hover:bg-gray-200" title="Italic">I</button>
+    <button type="button" data-cmd="bullet" class="rounded px-2 py-1 text-sm hover:bg-gray-200" title="Bullet list">• List</button>
+    <button type="button" data-cmd="link" class="rounded px-2 py-1 text-sm hover:bg-gray-200" title="Link">Link</button>
+  </div>
+  <textarea
+    {name}
+    {id}
+    {rows}
+    {placeholder}
+    class="block w-full rounded-b-lg border border-gray-300 px-3 py-2 font-mono text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+  >{value}</textarea>
+</div>
+
+<script>
+  document.querySelectorAll(".description-editor").forEach((editor) => {
+    const el = editor.querySelector("textarea");
+    if (!el) return;
+    const textarea = el as HTMLTextAreaElement;
+
+    function wrap(before: string, after: string = before) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const text = textarea.value;
+      const selected = text.slice(start, end);
+      const newText = text.slice(0, start) + before + selected + after + text.slice(end);
+      textarea.value = newText;
+      textarea.selectionStart = start + before.length;
+      textarea.selectionEnd = end + before.length;
+      textarea.focus();
+    }
+
+    function insert(atCursor: string) {
+      const start = textarea.selectionStart;
+      const text = textarea.value;
+      textarea.value = text.slice(0, start) + atCursor + text.slice(start);
+      textarea.selectionStart = textarea.selectionEnd = start + atCursor.length;
+      textarea.focus();
+    }
+
+    editor.querySelectorAll("button[data-cmd]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const cmd = (e.currentTarget as HTMLElement).dataset.cmd;
+        if (cmd === "bold") wrap("**", "**");
+        else if (cmd === "italic") wrap("*", "*");
+        else if (cmd === "bullet") insert("\n- ");
+        else if (cmd === "link") wrap("[", "](url)");
+      });
+    });
+  });
+</script>

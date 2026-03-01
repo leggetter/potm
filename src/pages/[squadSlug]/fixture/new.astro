@@ -1,5 +1,6 @@
 ---
 import BaseLayout from "../../../layouts/BaseLayout.astro";
+import DescriptionEditor from "../../../components/DescriptionEditor.astro";
 import { requireSquadAdmin } from "../../../lib/squads";
 import { generateFixtureSlug } from "../../../lib/fixtures";
 import { db } from "../../../db";
@@ -20,7 +21,9 @@ let error = "";
 if (Astro.request.method === "POST") {
   const formData = await Astro.request.formData();
   const opponent = formData.get("opponent")?.toString().trim();
+  const description = formData.get("description")?.toString().trim() || null;
   const gameDateStr = formData.get("game_date")?.toString();
+  const votingOpen = formData.get("voting_open") === "on";
   const deadline = formData.get("deadline")?.toString();
   const selectedPlayers = formData.getAll("players").map(Number);
 
@@ -28,37 +31,65 @@ if (Astro.request.method === "POST") {
     error = "Opponent name is required.";
   } else if (!gameDateStr) {
     error = "Game date is required.";
-  } else if (!deadline) {
-    error = "Voting deadline is required.";
-  } else if (selectedPlayers.length === 0) {
-    error = "Select at least one player.";
-  } else {
+  } else if (votingOpen && !deadline) {
+    error = "Voting deadline is required when voting is open.";
+  } else if (votingOpen && deadline) {
     const deadlineMs = new Date(deadline).getTime();
     if (deadlineMs <= Date.now()) {
       error = "Deadline must be in the future.";
+    } else if (selectedPlayers.length === 0) {
+      error = "Select at least one player.";
     } else {
       const slug = generateFixtureSlug(opponent);
       const gameDateMs = new Date(gameDateStr).getTime();
-
       const fixture = db
         .insert(fixtures)
         .values({
           squadId: squad.id,
           slug,
           opponent,
+          description,
           gameDate: gameDateMs,
           deadline: deadlineMs,
+          votingOpenedAt: Date.now(),
           createdBy: Astro.locals.user!.id,
         })
         .returning({ id: fixtures.id })
         .get();
-
       for (const playerId of selectedPlayers) {
         db.insert(fixturePlayers)
           .values({ fixtureId: fixture.id, playerId })
           .run();
       }
-
+      return Astro.redirect(`/${squad.slug}/fixture/${slug}`);
+    }
+  } else if (selectedPlayers.length === 0) {
+    error = "Select at least one player.";
+  } else {
+    const slug = generateFixtureSlug(opponent);
+    const gameDateMs = new Date(gameDateStr).getTime();
+    const deadlineMs = deadline ? new Date(deadline).getTime() : null;
+    if (deadlineMs !== null && deadlineMs <= Date.now()) {
+      error = "Deadline must be in the future.";
+    } else {
+      const fixture = db
+        .insert(fixtures)
+        .values({
+          squadId: squad.id,
+          slug,
+          opponent,
+          description,
+          gameDate: gameDateMs,
+          deadline: deadlineMs ?? undefined,
+          createdBy: Astro.locals.user!.id,
+        })
+        .returning({ id: fixtures.id })
+        .get();
+      for (const playerId of selectedPlayers) {
+        db.insert(fixturePlayers)
+          .values({ fixtureId: fixture.id, playerId })
+          .run();
+      }
       return Astro.redirect(`/${squad.slug}/fixture/${slug}`);
     }
   }
@@ -111,6 +142,19 @@ const activePlayers = db
       </div>
 
       <div>
+        <label for="description" class="block text-sm font-medium text-gray-700">
+          Details (optional)
+        </label>
+        <p class="mt-0.5 mb-1 text-xs text-gray-500">Supports **bold**, *italic*, lists and [links](url).</p>
+        <DescriptionEditor
+          name="description"
+          id="description"
+          placeholder="e.g. Location: Main pitch. Arrival: 9:30. Kick-off: 10:00. Kit: Red."
+          rows={5}
+        />
+      </div>
+
+      <div>
         <label for="game_date" class="block text-sm font-medium text-gray-700">
           Game date <span class="text-red-500">*</span>
         </label>
@@ -123,15 +167,31 @@ const activePlayers = db
         />
       </div>
 
-      <div>
-        <label for="deadline" class="block text-sm font-medium text-gray-700">
-          Voting deadline <span class="text-red-500">*</span>
+      <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            name="voting_open"
+            id="voting_open"
+            class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+          />
+          <span class="text-sm font-medium text-gray-700">Voting open</span>
         </label>
+        <p class="mt-1 ml-6 text-xs text-gray-500">
+          Open voting now so the link can be shared. You can also open voting later from the fixture page.
+        </p>
+      </div>
+
+      <div id="deadline-wrap">
+        <label for="deadline" class="block text-sm font-medium text-gray-700">
+          Voting deadline
+          <span id="deadline-required" class="text-red-500 hidden">*</span>
+        </label>
+        <p class="mt-0.5 text-xs text-gray-500">Optional until voting is open. When you open voting, a deadline is required.</p>
         <input
           type="datetime-local"
           id="deadline"
           name="deadline"
-          required
           class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
         />
       </div>
@@ -165,3 +225,19 @@ const activePlayers = db
     </form>
   )}
 </BaseLayout>
+
+<script is:inline>
+  (function () {
+    const votingOpen = document.getElementById("voting_open");
+    const deadlineInput = document.getElementById("deadline");
+    const requiredSpan = document.getElementById("deadline-required");
+    if (!votingOpen || !deadlineInput || !requiredSpan) return;
+    function update() {
+      const required = votingOpen.checked;
+      deadlineInput.required = required;
+      requiredSpan.classList.toggle("hidden", !required);
+    }
+    votingOpen.addEventListener("change", update);
+    update();
+  })();
+</script>

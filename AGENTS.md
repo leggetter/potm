@@ -22,12 +22,10 @@ All forms use standard HTML form submissions with POST handling in Astro frontma
 
 ### Database
 
-- All tables (app + Better Auth) are defined in `src/db/schema.ts`. Auth tables (`user`, `session`, `account`, `verification`) are managed by Better Auth at runtime but included in the schema so `drizzle-kit push` sees them and does not drop them.
-- Use raw SQL via the `sqlite` export from `src/db/index.ts` when joining with Better Auth tables (e.g. `user`).
-- **Schema changes:** run `npx drizzle-kit push` (or `npm run db:push`). Run Better Auth migrate first on a new DB: `npx auth@latest migrate --config ./src/lib/auth.ts --yes`.
+- App tables are defined in `src/db/schema.ts` using Drizzle ORM. Better Auth's tables are NOT in the Drizzle schema — use raw SQL via the `sqlite` export from `src/db/index.ts` when joining with Better Auth tables (e.g. `user`).
+- **Schema changes:** run `npx drizzle-kit push` (or `npm run db:push`). Run Better Auth migrate first on a new DB: `npx auth@latest migrate --config ./src/lib/auth.ts --yes`. For existing DBs with breaking changes (e.g. new columns, nullable deadline), run the relevant migration in `drizzle/` before or after push as needed.
 - SQLite pragmas: `journal_mode = WAL`, `foreign_keys = ON`
-- All timestamps are stored as integer (unix milliseconds). Auth tables use the same; Better Auth creates them with compatible types.
-- Optional: migrations in `drizzle/` can be generated with `npx drizzle-kit generate` for versioned SQL; push is the primary workflow. For existing DBs that had nullable `game_date`, run `sqlite3 data/potm.db < drizzle/0002_fixture_game_date_required.sql` once before push.
+- All timestamps are stored as integer (unix milliseconds)
 
 ### Authentication & Authorization
 
@@ -39,6 +37,7 @@ All forms use standard HTML form submissions with POST handling in Astro frontma
 ### Routing
 
 - Squad routes are under `src/pages/[squadSlug]/`
+- **Single fixture URL**: `/[squadSlug]/fixture/[fixtureSlug]` — info when voting not open, vote form / thanks / results when voting open (by state). No separate `/vote` path. OG image at `/[squadSlug]/fixture/[fixtureSlug]/og`.
 - System routes (`/`, `/about`, `/login`, `/dashboard`, `/new`, `/api`, `/uploads`) cannot collide with squad slugs because slugs always contain a UUID suffix
 
 ### Uploads
@@ -71,5 +70,6 @@ npx astro check          # Type checking
 
 - Drizzle's `.where()` does NOT stack — use `and()` / `or()` to combine conditions
 - Better Auth's sign-in and sign-out are POST endpoints, not GET
+- **Voting**: `fixtures.votingOpenedAt` — when set, voting is open; `deadline` is optional until voting is opened, then required. Admins can "Turn off voting" (set `votingOpenedAt` to null).
 - The `potm_voter` cookie (UUID, 1-year) is the stable browser identifier for vote deduplication; `voted_{fixture_id}` is the per-fixture "already voted" flag
 - Squad slugs are permanent — changing the squad name does not change the slug

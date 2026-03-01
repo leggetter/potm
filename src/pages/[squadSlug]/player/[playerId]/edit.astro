@@ -1,0 +1,85 @@
+---
+import BaseLayout from "../../../../layouts/BaseLayout.astro";
+import { requireSquadAdmin } from "../../../../lib/squads";
+import { db } from "../../../../db";
+import { players } from "../../../../db/schema";
+import { eq, and } from "drizzle-orm";
+
+const { squadSlug, playerId: playerIdParam } = Astro.params;
+if (!squadSlug || !playerIdParam) {
+  return new Response("Not found", { status: 404 });
+}
+
+const playerId = Number(playerIdParam);
+if (!Number.isInteger(playerId)) {
+  return new Response("Not found", { status: 404 });
+}
+
+const access = await requireSquadAdmin(squadSlug, Astro.locals.user?.id);
+if (!access) {
+  return new Response("Not found", { status: 404 });
+}
+
+const { squad } = access;
+const player = db
+  .select()
+  .from(players)
+  .where(and(eq(players.id, playerId), eq(players.squadId, squad.id)))
+  .get();
+
+if (!player) {
+  return new Response("Not found", { status: 404 });
+}
+
+let error = "";
+
+if (Astro.request.method === "POST") {
+  const formData = await Astro.request.formData();
+  const name = formData.get("name")?.toString().trim();
+
+  if (!name) {
+    error = "Name is required.";
+  } else {
+    db.update(players).set({ name }).where(eq(players.id, playerId)).run();
+    return Astro.redirect(`/${squad.slug}`);
+  }
+}
+---
+
+<BaseLayout title={`Edit player - ${squad.name}`}>
+  <div class="mb-4">
+    <a href={`/${squad.slug}`} class="text-sm text-indigo-600 hover:text-indigo-700">
+      &larr; Back to {squad.name}
+    </a>
+  </div>
+
+  <h1 class="text-2xl font-bold text-gray-900">Edit player</h1>
+
+  {error && (
+    <div class="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>
+  )}
+
+  <form method="POST" class="mt-6 space-y-4">
+    <div>
+      <label for="name" class="block text-sm font-medium text-gray-700">
+        Name <span class="text-red-500">*</span>
+      </label>
+      <input
+        type="text"
+        id="name"
+        name="name"
+        required
+        value={player.name}
+        class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+        placeholder="Player name"
+      />
+    </div>
+
+    <button
+      type="submit"
+      class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+    >
+      Save
+    </button>
+  </form>
+</BaseLayout>

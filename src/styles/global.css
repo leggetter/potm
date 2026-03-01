@@ -1,1 +1,10 @@
 @import "tailwindcss";
+
+.description-richtext p { margin: 0.25rem 0; }
+.description-richtext p:first-child { margin-top: 0; }
+.description-richtext p:last-child { margin-bottom: 0; }
+.description-richtext ul, .description-richtext ol { margin: 0.25rem 0; padding-left: 1.25rem; }
+.description-richtext li { margin: 0.125rem 0; }
+.description-richtext a { color: #4f46e5; text-decoration: underline; }
+.description-richtext strong { font-weight: 700; }
+.description-richtext em { font-style: italic; }

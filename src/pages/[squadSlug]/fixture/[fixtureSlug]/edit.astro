@@ -1,5 +1,6 @@
 ---
 import BaseLayout from "../../../../layouts/BaseLayout.astro";
+import DescriptionEditor from "../../../../components/DescriptionEditor.astro";
 import { requireSquadAdmin } from "../../../../lib/squads";
 import { getFixtureBySlug, getFixturePlayers } from "../../../../lib/fixtures";
 import { db } from "../../../../db";
@@ -27,28 +28,31 @@ let error = "";
 if (Astro.request.method === "POST") {
   const formData = await Astro.request.formData();
   const opponent = formData.get("opponent")?.toString().trim();
+  const description = formData.get("description")?.toString().trim() || null;
   const gameDateStr = formData.get("game_date")?.toString();
   const deadline = formData.get("deadline")?.toString();
   const selectedPlayers = formData.getAll("players").map(Number);
 
+  const votingOpen = fixture.votingOpenedAt != null;
   if (!opponent) {
     error = "Opponent name is required.";
   } else if (!gameDateStr) {
     error = "Game date is required.";
-  } else if (!deadline) {
-    error = "Voting deadline is required.";
+  } else if (votingOpen && !deadline) {
+    error = "Voting deadline is required when voting is open.";
   } else if (selectedPlayers.length === 0) {
     error = "Select at least one player.";
   } else {
-    const deadlineMs = new Date(deadline).getTime();
     const gameDateMs = new Date(gameDateStr).getTime();
+    const deadlineMs = deadline ? new Date(deadline).getTime() : null;
 
     db
       .update(fixtures)
       .set({
         opponent,
+        description,
         gameDate: gameDateMs,
-        deadline: deadlineMs,
+        deadline: deadlineMs ?? undefined,
       })
       .where(eq(fixtures.id, fixture.id))
       .run();
@@ -73,10 +77,11 @@ const activePlayers = db
 const currentFixturePlayers = await getFixturePlayers(fixture.id);
 const currentPlayerIds = new Set(currentFixturePlayers.map((p) => p.id));
 
-const deadlineLocal = new Date(fixture.deadline);
-const deadlineValue = new Date(deadlineLocal.getTime() - deadlineLocal.getTimezoneOffset() * 60000)
-  .toISOString()
-  .slice(0, 16);
+const votingOpen = fixture.votingOpenedAt != null;
+const deadlineValue =
+  fixture.deadline != null
+    ? new Date(fixture.deadline - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+    : "";
 const gameDateValue = new Date(fixture.gameDate).toISOString().slice(0, 10);
 ---
 
@@ -111,6 +116,20 @@ const gameDateValue = new Date(fixture.gameDate).toISOString().slice(0, 10);
     </div>
 
     <div>
+      <label for="description" class="block text-sm font-medium text-gray-700">
+        Details (optional)
+      </label>
+      <p class="mt-0.5 mb-1 text-xs text-gray-500">Supports **bold**, *italic*, lists and [links](url).</p>
+      <DescriptionEditor
+        name="description"
+        id="description"
+        value={fixture.description ?? ""}
+        placeholder="e.g. Location: Main pitch. Arrival: 9:30. Kick-off: 10:00. Kit: Red."
+        rows={5}
+      />
+    </div>
+
+    <div>
       <label for="game_date" class="block text-sm font-medium text-gray-700">
         Game date <span class="text-red-500">*</span>
       </label>
@@ -126,13 +145,14 @@ const gameDateValue = new Date(fixture.gameDate).toISOString().slice(0, 10);
 
     <div>
       <label for="deadline" class="block text-sm font-medium text-gray-700">
-        Voting deadline <span class="text-red-500">*</span>
+        Voting deadline {votingOpen && <span class="text-red-500">*</span>}
       </label>
+      <p class="mt-0.5 text-xs text-gray-500">Required when voting is open. Optional until then.</p>
       <input
         type="datetime-local"
         id="deadline"
         name="deadline"
-        required
+        required={votingOpen}
         value={deadlineValue}
         class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
       />
