@@ -23,7 +23,7 @@ A simple voting app for sports teams. After a match, share a link with your team
 ### Prerequisites
 
 - Node.js 20+
-- A Google OAuth app ([console.cloud.google.com](https://console.cloud.google.com/))
+- [gcloud CLI](https://cloud.google.com/sdk/docs/install) (for the setup script)
 
 ### Setup
 
@@ -31,9 +31,11 @@ A simple voting app for sports teams. After a match, share a link with your team
 # Install dependencies
 npm install
 
-# Copy and configure environment variables
-cp .env.example .env
-# Edit .env with your Google OAuth credentials and a random secret
+# Create GCP project + Google OAuth credentials (interactive)
+./scripts/setup-gcp.sh
+
+# Or reuse an existing GCP project
+./scripts/setup-gcp.sh --project your-project-id
 
 # Generate and apply database migrations
 npx drizzle-kit push
@@ -41,6 +43,14 @@ npx drizzle-kit push
 # Start the dev server
 npx astro dev
 ```
+
+The setup script will:
+1. Create a GCP project and enable the People API
+2. Walk you through creating OAuth clients for local dev and production
+3. Write `.env` (local) and `.env.production` with your credentials
+4. Print the `fly secrets set` command for production deployment
+
+Run `./scripts/setup-gcp.sh --help` for all options (`--prod-url`, `--dev-url`, `--support-email`).
 
 ### Environment Variables
 
