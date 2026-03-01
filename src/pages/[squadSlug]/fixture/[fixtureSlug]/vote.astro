@@ -1,0 +1,209 @@
+---
+import BaseLayout from "../../../../layouts/BaseLayout.astro";
+import SquadHeader from "../../../../components/SquadHeader.astro";
+import ResultsDisplay from "../../../../components/ResultsDisplay.astro";
+import { getSquadBySlug, getSquadRole } from "../../../../lib/squads";
+import {
+  getFixtureBySlug,
+  getFixturePlayers,
+  getFixtureResults,
+} from "../../../../lib/fixtures";
+import { db } from "../../../../db";
+import { votes } from "../../../../db/schema";
+import { and, eq } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+
+const { squadSlug, fixtureSlug } = Astro.params;
+if (!squadSlug || !fixtureSlug) {
+  return new Response("Not found", { status: 404 });
+}
+
+const squad = await getSquadBySlug(squadSlug);
+if (!squad) {
+  return new Response("Not found", { status: 404 });
+}
+
+const fixture = await getFixtureBySlug(squad.id, fixtureSlug);
+if (!fixture) {
+  return new Response("Not found", { status: 404 });
+}
+
+const isPast = fixture.deadline < Date.now();
+const votedCookie = Astro.cookies.get(`voted_${fixture.id}`)?.value;
+let justVoted = false;
+let error = "";
+
+// Handle POST (vote submission)
+if (Astro.request.method === "POST" && !isPast && !votedCookie) {
+  const formData = await Astro.request.formData();
+  const voterName = formData.get("voter_name")?.toString().trim();
+  const playerId = Number(formData.get("player_id"));
+
+  if (!voterName) {
+    error = "Please enter your name.";
+  } else if (!playerId) {
+    error = "Please select a player.";
+  } else {
+    // Get or create voter token
+    let voterToken = Astro.cookies.get("potm_voter")?.value;
+    if (!voterToken) {
+      voterToken = randomUUID();
+      Astro.cookies.set("potm_voter", voterToken, {
+        path: "/",
+        maxAge: 365 * 24 * 60 * 60,
+        httpOnly: true,
+        sameSite: "lax",
+      });
+    }
+
+    // Check for duplicate vote via DB unique constraint
+    const existing = db
+      .select()
+      .from(votes)
+      .where(
+        and(
+          eq(votes.fixtureId, fixture.id),
+          eq(votes.voterToken, voterToken)
+        )
+      )
+      .get();
+
+    if (existing) {
+      error = "You have already voted for this fixture.";
+    } else {
+      db.insert(votes)
+        .values({
+          fixtureId: fixture.id,
+          playerId,
+          voterName,
+          voterToken,
+        })
+        .run();
+
+      Astro.cookies.set(`voted_${fixture.id}`, "1", {
+        path: "/",
+        maxAge: 365 * 24 * 60 * 60,
+        httpOnly: true,
+        sameSite: "lax",
+      });
+
+      justVoted = true;
+    }
+  }
+}
+
+// Determine state
+const hasVoted = !!votedCookie || justVoted;
+
+// Check if current user is an admin
+const isAdmin =
+  Astro.locals.user &&
+  (await getSquadRole(squad.id, Astro.locals.user.id)) !== null;
+
+// Get data needed for display
+const fixturePlayers = !isPast && !hasVoted ? await getFixturePlayers(fixture.id) : [];
+const results = isPast || isAdmin ? await getFixtureResults(fixture.id) : [];
+const winners =
+  isPast && results.length > 0
+    ? results.filter((r) => r.voteCount === results[0].voteCount && r.voteCount > 0)
+    : [];
+---
+
+<BaseLayout title={`Vote: vs ${fixture.opponent}`}>
+  <SquadHeader
+    name={squad.name}
+    description={squad.description}
+    headerImage={squad.headerImage}
+  />
+
+  <h1 class="text-2xl font-bold text-gray-900 mb-1">vs {fixture.opponent}</h1>
+  <p class="text-sm text-gray-500 mb-6">
+    Player of the Match vote
+    {isPast && <span class="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">Voting closed</span>}
+  </p>
+
+  {error && (
+    <div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>
+  )}
+
+  {isPast ? (
+    <!-- After deadline: show winners -->
+    <div>
+      {winners.length === 0 ? (
+        <p class="text-gray-500">No votes were cast.</p>
+      ) : (
+        <div class="rounded-lg border-2 border-yellow-300 bg-yellow-50 p-6 text-center">
+          <p class="text-sm font-medium text-yellow-800 uppercase tracking-wide">
+            Player of the Match
+          </p>
+          {winners.map((winner) => (
+            <p class="mt-2 text-2xl font-bold text-gray-900">{winner.playerName}</p>
+          ))}
+          <span class="mt-3 inline-block rounded-full bg-yellow-200 px-3 py-1 text-sm font-semibold text-yellow-900">
+            POTM Winner{winners.length > 1 ? "s" : ""}
+          </span>
+        </div>
+      )}
+
+      {/* Admin sees full breakdown below the winner announcement */}
+      {isAdmin && results.length > 0 && (
+        <div class="mt-8">
+          <h2 class="text-lg font-semibold text-gray-900 mb-3">Full Results</h2>
+          <ResultsDisplay results={results} showVoters={true} />
+        </div>
+      )}
+    </div>
+  ) : hasVoted ? (
+    <!-- Already voted -->
+    <div class="rounded-lg border-2 border-green-200 bg-green-50 p-6 text-center">
+      <p class="text-lg font-semibold text-green-700">Thanks for voting!</p>
+      <p class="mt-2 text-sm text-green-600">
+        Results will be available after {new Date(fixture.deadline).toLocaleString()}.
+      </p>
+    </div>
+  ) : (
+    <!-- Voting form -->
+    <form method="POST" class="space-y-4">
+      <div>
+        <label for="voter_name" class="block text-sm font-medium text-gray-700">
+          Your name <span class="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          id="voter_name"
+          name="voter_name"
+          required
+          class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+          placeholder="Enter your name"
+        />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-2">
+          Who was Player of the Match? <span class="text-red-500">*</span>
+        </label>
+        <div class="space-y-2">
+          {fixturePlayers.map((player) => (
+            <label class="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-4 cursor-pointer hover:border-indigo-300 active:bg-indigo-50">
+              <input
+                type="radio"
+                name="player_id"
+                value={player.id}
+                required
+                class="h-5 w-5 border-gray-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <span class="text-base font-medium text-gray-900">{player.name}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <button
+        type="submit"
+        class="w-full rounded-lg bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+      >
+        Submit vote
+      </button>
+    </form>
+  )}
+</BaseLayout>

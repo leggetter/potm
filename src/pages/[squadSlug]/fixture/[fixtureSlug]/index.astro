@@ -1,0 +1,93 @@
+---
+import BaseLayout from "../../../../layouts/BaseLayout.astro";
+import SquadHeader from "../../../../components/SquadHeader.astro";
+import ResultsDisplay from "../../../../components/ResultsDisplay.astro";
+import { requireSquadAdmin } from "../../../../lib/squads";
+import { getFixtureBySlug, getFixtureResults } from "../../../../lib/fixtures";
+
+const { squadSlug, fixtureSlug } = Astro.params;
+if (!squadSlug || !fixtureSlug) {
+  return new Response("Not found", { status: 404 });
+}
+
+const access = await requireSquadAdmin(squadSlug, Astro.locals.user?.id);
+if (!access) {
+  return new Response("Not found", { status: 404 });
+}
+
+const { squad } = access;
+const fixture = await getFixtureBySlug(squad.id, fixtureSlug);
+if (!fixture) {
+  return new Response("Not found", { status: 404 });
+}
+
+const results = await getFixtureResults(fixture.id);
+const isPast = fixture.deadline < Date.now();
+const voteUrl = `${Astro.url.origin}/${squad.slug}/fixture/${fixture.slug}/vote`;
+---
+
+<BaseLayout title={`vs ${fixture.opponent} - ${squad.name}`}>
+  <SquadHeader
+    name={squad.name}
+    description={squad.description}
+    headerImage={squad.headerImage}
+  />
+
+  <div class="mb-4">
+    <a href={`/${squad.slug}`} class="text-sm text-indigo-600 hover:text-indigo-700">
+      &larr; Back to {squad.name}
+    </a>
+  </div>
+
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">vs {fixture.opponent}</h1>
+      <p class="text-sm text-gray-500">
+        Deadline: {new Date(fixture.deadline).toLocaleString()}
+        <span class:list={[
+          "ml-2 rounded-full px-2 py-0.5 text-xs font-medium",
+          isPast
+            ? "bg-gray-100 text-gray-600"
+            : "bg-green-100 text-green-700",
+        ]}>
+          {isPast ? "Closed" : "Voting open"}
+        </span>
+      </p>
+    </div>
+  </div>
+
+  <!-- Shareable Vote Link -->
+  <div class="mb-6 rounded-lg bg-indigo-50 p-4">
+    <p class="text-sm font-medium text-indigo-700">Share the voting link:</p>
+    <div class="mt-1 flex gap-2">
+      <input
+        type="text"
+        readonly
+        value={voteUrl}
+        id="vote-url"
+        class="flex-1 rounded border border-indigo-200 bg-white px-2 py-1 text-xs"
+      />
+      <button
+        id="copy-vote-url"
+        class="rounded bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700"
+      >
+        Copy
+      </button>
+    </div>
+  </div>
+
+  <!-- Full Results (admin always sees) -->
+  <section>
+    <h2 class="text-lg font-semibold text-gray-900 mb-3">Results</h2>
+    <ResultsDisplay results={results} showVoters={true} />
+  </section>
+</BaseLayout>
+
+<script is:inline>
+  document.getElementById("copy-vote-url")?.addEventListener("click", () => {
+    const input = document.getElementById("vote-url");
+    input.select();
+    navigator.clipboard.writeText(input.value);
+    document.getElementById("copy-vote-url").textContent = "Copied!";
+  });
+</script>

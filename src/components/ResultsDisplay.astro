@@ -1,0 +1,55 @@
+---
+interface PlayerResult {
+  playerName: string;
+  voteCount: number;
+  voters: string[];
+}
+
+interface Props {
+  results: PlayerResult[];
+  showVoters?: boolean;
+}
+
+const { results, showVoters = false } = Astro.props;
+const maxVotes = Math.max(...results.map((r) => r.voteCount), 1);
+const totalVotes = results.reduce((sum, r) => sum + r.voteCount, 0);
+---
+
+{totalVotes === 0 ? (
+  <p class="text-gray-500">No votes yet.</p>
+) : (
+  <div class="space-y-3">
+    {results.map((result, i) => (
+      <div>
+        <div class="flex items-center justify-between text-sm">
+          <span class="font-medium text-gray-900">
+            {result.playerName}
+            {i === 0 && result.voteCount > 0 && (
+              <span class="ml-2 inline-block rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-800">
+                POTM
+              </span>
+            )}
+          </span>
+          <span class="text-gray-600">
+            {result.voteCount} {result.voteCount === 1 ? "vote" : "votes"}
+          </span>
+        </div>
+        <div class="mt-1 h-4 overflow-hidden rounded-full bg-gray-200">
+          <div
+            class:list={[
+              "h-full rounded-full transition-all",
+              i === 0 ? "bg-indigo-600" : "bg-indigo-300",
+            ]}
+            style={`width: ${(result.voteCount / maxVotes) * 100}%`}
+          />
+        </div>
+        {showVoters && result.voters.length > 0 && (
+          <p class="mt-1 text-xs text-gray-500">
+            {result.voters.join(", ")}
+          </p>
+        )}
+      </div>
+    ))}
+    <p class="text-sm text-gray-500">{totalVotes} total {totalVotes === 1 ? "vote" : "votes"}</p>
+  </div>
+)}

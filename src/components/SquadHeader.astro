@@ -1,0 +1,23 @@
+---
+interface Props {
+  name: string;
+  description?: string | null;
+  headerImage?: string | null;
+}
+
+const { name, description, headerImage } = Astro.props;
+---
+
+<div class="mb-6">
+  {headerImage && (
+    <div class="mb-4 overflow-hidden rounded-lg">
+      <img
+        src={`/uploads/${headerImage}`}
+        alt={`${name} header`}
+        class="h-32 w-full object-cover sm:h-48"
+      />
+    </div>
+  )}
+  <h1 class="text-2xl font-bold text-gray-900">{name}</h1>
+  {description && <p class="mt-1 text-gray-600">{description}</p>}
+</div>

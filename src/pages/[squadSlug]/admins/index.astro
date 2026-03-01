@@ -1,0 +1,230 @@
+---
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import { requireSquadAdmin } from "../../../lib/squads";
+import { db, sqlite } from "../../../db";
+import { squadAdmins, squadInvites } from "../../../db/schema";
+import { eq, and, isNull } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+
+const { squadSlug } = Astro.params;
+if (!squadSlug) return Astro.redirect("/dashboard");
+
+const access = await requireSquadAdmin(squadSlug, Astro.locals.user?.id);
+if (!access) {
+  return new Response("Not found", { status: 404 });
+}
+
+const { squad, role } = access;
+let error = "";
+let success = "";
+let inviteUrl = "";
+
+if (Astro.request.method === "POST") {
+  const formData = await Astro.request.formData();
+  const action = formData.get("action")?.toString();
+
+  if (action === "invite") {
+    const email = formData.get("email")?.toString().trim().toLowerCase();
+    if (!email) {
+      error = "Email is required.";
+    } else {
+      const token = randomUUID();
+      const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
+
+      db.insert(squadInvites)
+        .values({
+          squadId: squad.id,
+          email,
+          token,
+          invitedBy: Astro.locals.user!.id,
+          expiresAt,
+        })
+        .run();
+
+      inviteUrl = `${Astro.url.origin}/${squad.slug}/admins/invite/${token}`;
+      success = `Invitation created for ${email}. Share the link below.`;
+    }
+  } else if (action === "remove_admin" && role === "owner") {
+    const userId = formData.get("user_id")?.toString();
+    if (userId && userId !== Astro.locals.user!.id) {
+      db.delete(squadAdmins)
+        .where(
+          and(
+            eq(squadAdmins.squadId, squad.id),
+            eq(squadAdmins.userId, userId)
+          )
+        )
+        .run();
+      success = "Admin removed.";
+    }
+  } else if (action === "leave" && role === "admin") {
+    db.delete(squadAdmins)
+      .where(
+        and(
+          eq(squadAdmins.squadId, squad.id),
+          eq(squadAdmins.userId, Astro.locals.user!.id)
+        )
+      )
+      .run();
+    return Astro.redirect("/dashboard");
+  }
+}
+
+// Better Auth manages user table — query it via raw SQL
+const admins = sqlite
+  .prepare(
+    `SELECT sa.user_id as userId, sa.role, u.name as userName, u.email as userEmail
+     FROM squad_admins sa
+     JOIN user u ON sa.user_id = u.id
+     WHERE sa.squad_id = ?`
+  )
+  .all(squad.id) as {
+    userId: string;
+    role: string;
+    userName: string;
+    userEmail: string;
+  }[];
+
+const pendingInvites = db
+  .select()
+  .from(squadInvites)
+  .where(
+    and(eq(squadInvites.squadId, squad.id), isNull(squadInvites.acceptedAt))
+  )
+  .all()
+  .filter((inv) => inv.expiresAt > Date.now());
+---
+
+<BaseLayout title={`Admins - ${squad.name}`}>
+  <div class="mb-4">
+    <a href={`/${squad.slug}`} class="text-sm text-indigo-600 hover:text-indigo-700">
+      &larr; Back to {squad.name}
+    </a>
+  </div>
+
+  <h1 class="text-2xl font-bold text-gray-900">Manage Admins</h1>
+
+  {error && (
+    <div class="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>
+  )}
+  {success && (
+    <div class="mt-4 rounded-lg bg-green-50 p-3 text-sm text-green-700">{success}</div>
+  )}
+  {inviteUrl && (
+    <div class="mt-4 rounded-lg bg-blue-50 p-3">
+      <p class="text-sm font-medium text-blue-700">Share this invite link:</p>
+      <div class="mt-1 flex gap-2">
+        <input
+          type="text"
+          readonly
+          value={inviteUrl}
+          id="invite-url"
+          class="flex-1 rounded border border-blue-200 bg-white px-2 py-1 text-xs"
+        />
+        <button
+          id="copy-invite"
+          class="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
+        >
+          Copy
+        </button>
+      </div>
+    </div>
+  )}
+
+  <!-- Current Admins -->
+  <section class="mt-6">
+    <h2 class="text-lg font-semibold text-gray-900 mb-3">Current Admins</h2>
+    <ul class="space-y-2">
+      {admins.map((admin) => (
+        <li class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3">
+          <div>
+            <span class="text-sm font-medium text-gray-900">{admin.userName}</span>
+            <span class="ml-2 text-xs text-gray-500">{admin.userEmail}</span>
+            <span class:list={[
+              "ml-2 rounded-full px-2 py-0.5 text-xs font-medium",
+              admin.role === "owner"
+                ? "bg-indigo-100 text-indigo-700"
+                : "bg-gray-100 text-gray-600",
+            ]}>
+              {admin.role}
+            </span>
+          </div>
+          {role === "owner" && admin.userId !== Astro.locals.user!.id && (
+            <form method="POST">
+              <input type="hidden" name="action" value="remove_admin" />
+              <input type="hidden" name="user_id" value={admin.userId} />
+              <button type="submit" class="text-xs text-red-600 hover:text-red-700">
+                Remove
+              </button>
+            </form>
+          )}
+        </li>
+      ))}
+    </ul>
+  </section>
+
+  <!-- Invite Form -->
+  <section class="mt-8">
+    <h2 class="text-lg font-semibold text-gray-900 mb-3">Invite Admin</h2>
+    <form method="POST" class="flex gap-2">
+      <input type="hidden" name="action" value="invite" />
+      <input
+        type="email"
+        name="email"
+        placeholder="admin@example.com"
+        required
+        class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+      />
+      <button
+        type="submit"
+        class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+      >
+        Invite
+      </button>
+    </form>
+  </section>
+
+  <!-- Pending Invites -->
+  {pendingInvites.length > 0 && (
+    <section class="mt-8">
+      <h2 class="text-lg font-semibold text-gray-900 mb-3">Pending Invites</h2>
+      <ul class="space-y-2">
+        {pendingInvites.map((invite) => (
+          <li class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-2">
+            <span class="text-sm text-gray-600">{invite.email}</span>
+            <span class="text-xs text-gray-400">
+              Expires {new Date(invite.expiresAt).toLocaleDateString()}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  <!-- Leave Squad -->
+  {role === "admin" && (
+    <div class="mt-12 border-t border-gray-200 pt-6">
+      <form method="POST">
+        <input type="hidden" name="action" value="leave" />
+        <button
+          type="submit"
+          onclick="return confirm('Are you sure you want to leave this squad?')"
+          class="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+        >
+          Leave squad
+        </button>
+      </form>
+    </div>
+  )}
+</BaseLayout>
+
+{inviteUrl && (
+  <script is:inline>
+    document.getElementById("copy-invite")?.addEventListener("click", () => {
+      const input = document.getElementById("invite-url");
+      input.select();
+      navigator.clipboard.writeText(input.value);
+      document.getElementById("copy-invite").textContent = "Copied!";
+    });
+  </script>
+)}

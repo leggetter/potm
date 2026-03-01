@@ -1,0 +1,28 @@
+---
+import NavBar from "../components/NavBar.astro";
+import "../styles/global.css";
+
+interface Props {
+  title: string;
+  noNav?: boolean;
+}
+
+const { title, noNav } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Player of the Match voting app" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title} | POTM</title>
+  </head>
+  <body class="min-h-screen bg-gray-50 text-gray-900">
+    {!noNav && <NavBar user={Astro.locals.user} />}
+    <main class="mx-auto max-w-3xl px-4 py-6">
+      <slot />
+    </main>
+  </body>
+</html>

@@ -1,0 +1,122 @@
+---
+import BaseLayout from "../../../../layouts/BaseLayout.astro";
+import { db } from "../../../../db";
+import { squadInvites, squadAdmins, squads } from "../../../../db/schema";
+import { eq, and } from "drizzle-orm";
+
+const { token, squadSlug } = Astro.params;
+if (!token || !squadSlug) {
+  return new Response("Not found", { status: 404 });
+}
+
+if (!Astro.locals.user) {
+  return Astro.redirect(`/login?redirect=${encodeURIComponent(Astro.url.pathname)}`);
+}
+
+const invite = db
+  .select()
+  .from(squadInvites)
+  .where(eq(squadInvites.token, token))
+  .get();
+
+if (!invite) {
+  return new Response("Invite not found", { status: 404 });
+}
+
+const squad = db
+  .select()
+  .from(squads)
+  .where(eq(squads.id, invite.squadId))
+  .get();
+
+if (!squad || squad.slug !== squadSlug) {
+  return new Response("Not found", { status: 404 });
+}
+
+let error = "";
+let accepted = !!invite.acceptedAt;
+
+// Check if invite is expired
+if (!accepted && invite.expiresAt < Date.now()) {
+  error = "This invitation has expired.";
+}
+
+// Check if email matches
+if (!error && !accepted && Astro.locals.user.email.toLowerCase() !== invite.email.toLowerCase()) {
+  error = `This invitation was sent to ${invite.email}. You are signed in as ${Astro.locals.user.email}.`;
+}
+
+// Check if already an admin
+const existingAdmin = db
+  .select()
+  .from(squadAdmins)
+  .where(
+    and(
+      eq(squadAdmins.squadId, squad.id),
+      eq(squadAdmins.userId, Astro.locals.user.id)
+    )
+  )
+  .get();
+
+if (existingAdmin) {
+  return Astro.redirect(`/${squad.slug}`);
+}
+
+if (Astro.request.method === "POST" && !error && !accepted) {
+  const formData = await Astro.request.formData();
+  const action = formData.get("action")?.toString();
+
+  if (action === "accept") {
+    db.insert(squadAdmins)
+      .values({
+        squadId: squad.id,
+        userId: Astro.locals.user.id,
+        role: "admin",
+      })
+      .run();
+
+    db.update(squadInvites)
+      .set({ acceptedAt: Date.now() })
+      .where(eq(squadInvites.id, invite.id))
+      .run();
+
+    return Astro.redirect(`/${squad.slug}`);
+  }
+}
+---
+
+<BaseLayout title={`Join ${squad.name}`}>
+  <div class="flex flex-col items-center py-12">
+    {error ? (
+      <div class="rounded-lg bg-red-50 p-6 text-center">
+        <h1 class="text-xl font-bold text-red-700">Cannot accept invitation</h1>
+        <p class="mt-2 text-sm text-red-600">{error}</p>
+      </div>
+    ) : accepted ? (
+      <div class="rounded-lg bg-green-50 p-6 text-center">
+        <h1 class="text-xl font-bold text-green-700">Already accepted</h1>
+        <a href={`/${squad.slug}`} class="mt-4 inline-block text-sm text-indigo-600 hover:text-indigo-700">
+          Go to {squad.name}
+        </a>
+      </div>
+    ) : (
+      <div class="rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm">
+        <h1 class="text-xl font-bold text-gray-900">
+          Join {squad.name}
+        </h1>
+        <p class="mt-2 text-sm text-gray-600">
+          You've been invited to manage this squad as an admin.
+        </p>
+        <form method="POST" class="mt-6">
+          <input type="hidden" name="action" value="accept" />
+          <button
+            type="submit"
+            class="rounded-lg bg-indigo-600 px-6 py-3 text-sm font-semibold text-white hover:bg-indigo-700"
+          >
+            Accept invitation
+          </button>
+        </form>
+      </div>
+    )}
+  </div>
+</BaseLayout>

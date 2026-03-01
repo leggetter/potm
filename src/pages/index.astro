@@ -1,0 +1,33 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+if (Astro.locals.user) {
+  return Astro.redirect("/dashboard");
+}
+---
+
+<BaseLayout title="Player of the Match">
+  <div class="flex flex-col items-center py-12 text-center">
+    <h1 class="text-4xl font-bold text-gray-900 sm:text-5xl">
+      Player of the Match
+    </h1>
+    <p class="mt-4 max-w-md text-lg text-gray-600">
+      Create your squad, set up fixtures, and let anyone vote for their player
+      of the match — no sign-up required for voters.
+    </p>
+    <div class="mt-8 flex gap-4">
+      <a
+        href="/login"
+        class="rounded-lg bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+      >
+        Get started
+      </a>
+      <a
+        href="/about"
+        class="rounded-lg border border-gray-300 px-6 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+      >
+        Learn more
+      </a>
+    </div>
+  </div>
+</BaseLayout>

@@ -1,0 +1,72 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="About">
+  <h1 class="text-2xl font-bold text-gray-900">About POTM</h1>
+
+  <div class="mt-6 space-y-6 text-gray-700">
+    <section>
+      <h2 class="text-lg font-semibold text-gray-900">What is POTM?</h2>
+      <p class="mt-2">
+        POTM (Player of the Match) is a simple voting app for sports teams.
+        After a match, share a link with your team and let everyone vote for
+        their player of the match — no sign-up required for voters.
+      </p>
+    </section>
+
+    <section>
+      <h2 class="text-lg font-semibold text-gray-900">How it works</h2>
+      <ol class="mt-2 list-decimal space-y-2 pl-6">
+        <li>
+          <strong>Create an account</strong> — Sign in with your Google account
+          to manage your squads.
+        </li>
+        <li>
+          <strong>Create a squad</strong> — Set up your team with a name,
+          description, and optional header image.
+        </li>
+        <li>
+          <strong>Add players</strong> — Add your team's players to the squad
+          roster.
+        </li>
+        <li>
+          <strong>Create a fixture</strong> — Before or after a match, create a
+          fixture with the opponent name, select which players were in the squad,
+          and set a voting deadline.
+        </li>
+        <li>
+          <strong>Share the vote link</strong> — Copy the voting link and share
+          it with your team via WhatsApp, email, or wherever your team
+          communicates.
+        </li>
+        <li>
+          <strong>View results</strong> — Admins can see live results at any
+          time. Everyone else sees the winner after the voting deadline.
+        </li>
+      </ol>
+    </section>
+
+    <section>
+      <h2 class="text-lg font-semibold text-gray-900">Multi-admin support</h2>
+      <p class="mt-2">
+        Invite other managers to help run your squad. Admins can manage players,
+        create fixtures, and view results. The squad owner can invite and remove
+        admins.
+      </p>
+    </section>
+
+    <section>
+      <h2 class="text-lg font-semibold text-gray-900">Open source</h2>
+      <p class="mt-2">
+        POTM is open source. Check out the code on
+        <a
+          href="https://github.com/leggetter/potm"
+          class="text-indigo-600 hover:text-indigo-700 underline"
+          target="_blank"
+          rel="noopener noreferrer"
+        >GitHub</a>.
+      </p>
+    </section>
+  </div>
+</BaseLayout>
