@@ -140,9 +140,13 @@ const fixtureList = isAdmin ? await getSquadFixtures(squad.id) : [];
           const votingOpen = fixture.votingOpenedAt != null;
           const hasDeadline = fixture.deadline != null;
           const isPast = votingOpen && hasDeadline && fixture.deadline! < Date.now();
-          const badge = !votingOpen ? "POTM: Voting not open" : isPast ? "Closed" : "Voting open";
+          const badge = !votingOpen
+            ? (hasDeadline ? "Closed" : "POTM: Voting not open")
+            : isPast
+              ? "Closed"
+              : "Voting open";
           const badgeClass = !votingOpen
-            ? "bg-amber-100 text-amber-800"
+            ? (hasDeadline ? "bg-gray-100 text-gray-600" : "bg-amber-100 text-amber-800")
             : isPast
               ? "bg-gray-100 text-gray-600"
               : "bg-green-100 text-green-700";
