@@ -178,6 +178,16 @@ const defaultDeadline =
     ? new Date(fixture.deadline - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)
     : tomorrowStr;
 const isReopening = !votingOpen && fixture.deadline != null;
+
+// Open voting / Show results only from the day of the fixture onward (calendar day, server local)
+const gameDayStart = new Date(fixture.gameDate);
+gameDayStart.setHours(0, 0, 0, 0);
+const todayStart = new Date();
+todayStart.setHours(0, 0, 0, 0);
+const isGameDayOrBeyond = gameDayStart.getTime() <= todayStart.getTime();
+
+const totalVotes = results.reduce((sum, r) => sum + r.voteCount, 0);
+const hasAtLeastOneVote = totalVotes > 0;
 ---
 
 <BaseLayout title={`vs ${fixture.opponent} - ${squad.name}`}>
@@ -256,12 +266,14 @@ const isReopening = !votingOpen && fixture.deadline != null;
                 <span
                   class:list={[
                     "ml-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-                    isPast
-                      ? "bg-gray-100 text-gray-600"
-                      : "bg-emerald-100 text-emerald-700",
+                    isPast && resultsVisible
+                      ? "bg-amber-100 text-amber-800"
+                      : isPast
+                        ? "bg-gray-100 text-gray-600"
+                        : "bg-emerald-100 text-emerald-700",
                   ]}
                 >
-                  {isPast ? "Closed" : "Voting open"}
+                  {isPast && resultsVisible ? "POTM decided" : isPast ? "Closed" : "Voting open"}
                 </span>
               </>
             )
@@ -271,10 +283,10 @@ const isReopening = !votingOpen && fixture.deadline != null;
               <span
                 class:list={[
                   "ml-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-                  hasDeadline ? "bg-gray-100 text-gray-600" : "bg-amber-100 text-amber-800",
+                  resultsVisible ? "bg-amber-100 text-amber-800" : hasDeadline ? "bg-gray-100 text-gray-600" : "bg-yellow-100 text-yellow-800",
                 ]}
               >
-                {hasDeadline ? "Closed" : "Voting not open yet"}
+                {resultsVisible ? "POTM decided" : hasDeadline ? "Closed" : "Upcoming"}
               </span>
             )
           }
@@ -329,9 +341,16 @@ const isReopening = !votingOpen && fixture.deadline != null;
     </div>
   </article>
 
-  <!-- Admin: Voting closed — show results and/or reopen in one section -->
+  <!-- Admin: Voting closed — show results and/or reopen (only from game day onward) -->
   {
-    isAdmin && !votingOpen && (
+    isAdmin && !votingOpen && !isGameDayOrBeyond && (
+      <p class="mb-6 text-sm text-gray-500">
+        Open voting and show results are available from the day of the fixture ({new Date(fixture.gameDate).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}).
+      </p>
+    )
+  }
+  {
+    isAdmin && !votingOpen && isGameDayOrBeyond && (
       <div class="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm border-l-4 border-l-amber-500 p-4 sm:p-5">
         <h2 class="text-sm font-semibold text-gray-900 mb-1">
           {isReopening ? "Voting is closed" : "Open voting"}
@@ -342,7 +361,7 @@ const isReopening = !votingOpen && fixture.deadline != null;
             : "Set a deadline; voting will open until then."}
         </p>
         {
-          !resultsVisible && (
+          !resultsVisible && hasAtLeastOneVote && (
             <div class="mb-4 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
               <form method="POST">
                 <input type="hidden" name="action" value="show_results" />
@@ -357,6 +376,9 @@ const isReopening = !votingOpen && fixture.deadline != null;
             </div>
           )
         }
+        {!resultsVisible && !hasAtLeastOneVote && (
+          <p class="mb-4 text-xs text-gray-500">Show results will be available once at least one vote has been cast.</p>
+        )}
         {error && <p class="mb-2 text-sm text-red-600">{error}</p>}
         <form method="POST" class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:gap-3">
           <input type="hidden" name="action" value="open_voting" />
