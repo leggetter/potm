@@ -18,9 +18,9 @@ if [ -n "$DB_PATH" ] && [ -f "$DB_PATH" ]; then
   if ! DB_PATH="$DB_PATH" TABLE_NAME=verification node /app/scripts/has-table.js 2>/dev/null; then
     DB_PATH="$DB_PATH" node /app/scripts/ensure-auth-tables.js 2>/dev/null || true
   fi
-  # Run schema push only when the DB has no app tables (fresh volume).
-  if ! DB_PATH="$DB_PATH" TABLE_NAME=squads node /app/scripts/has-table.js 2>/dev/null; then
-    npx drizzle-kit push --force 2>/dev/null || true
-  fi
+  # Run Drizzle migrations (idempotent: only unapplied migrations run).
+  # Bootstrap seeds __drizzle_migrations for DBs that were created with push so migrate skips them.
+  DB_PATH="$DB_PATH" node /app/scripts/bootstrap-drizzle-migrations.js 2>/dev/null || true
+  DB_PATH="$DB_PATH" npx drizzle-kit migrate
 fi
 exec node dist/server/entry.mjs

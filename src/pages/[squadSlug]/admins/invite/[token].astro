@@ -41,8 +41,8 @@ if (!accepted && invite.expiresAt < Date.now()) {
   error = "This invitation has expired.";
 }
 
-// Check if email matches
-if (!error && !accepted && Astro.locals.user.email.toLowerCase() !== invite.email.toLowerCase()) {
+// Check if email matches (only for email invites; link invites have no email)
+if (!error && !accepted && invite.email != null && Astro.locals.user.email.toLowerCase() !== invite.email.toLowerCase()) {
   error = `This invitation was sent to ${invite.email}. You are signed in as ${Astro.locals.user.email}.`;
 }
 

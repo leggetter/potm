@@ -142,7 +142,7 @@ fly deploy
 
 The SQLite database and uploaded images are stored on a persistent volume mounted at `/data`.
 
-**Data persistence:** The startup script is additive-only: it never drops or truncates tables. It only (1) creates Better Auth tables if missing (`CREATE TABLE IF NOT EXISTS`), and (2) runs `drizzle-kit push` when the DB has no app tables (fresh volume). So existing users, sessions, squads, and votes are preserved across deploys and restarts. The only way production data is replaced is if you explicitly upload a file as `potm.db.restored` and restart.
+**Data persistence:** The startup script is additive-only: it never drops or truncates tables. It (1) creates Better Auth tables if missing (`CREATE TABLE IF NOT EXISTS`), (2) bootstraps `__drizzle_migrations` for DBs that were created with push (so migrate can skip already-applied migrations), and (3) runs `drizzle-kit migrate` so new migrations run automatically and re-runs are no-ops. Existing users, sessions, squads, and votes are preserved across deploys and restarts. The only way production data is replaced is if you explicitly upload a file as `potm.db.restored` and restart.
 
 **Backups:** To avoid losing auth or app data, back up the volume periodically.
 

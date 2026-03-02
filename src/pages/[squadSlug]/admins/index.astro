@@ -45,6 +45,22 @@ if (Astro.request.method === "POST") {
       inviteUrl = `${getPublicOrigin(Astro.url.origin)}/${squad.slug}/admins/invite/${token}`;
       success = `Invitation created for ${email}. Share the link below.`;
     }
+  } else if (action === "invite_link") {
+    const token = randomUUID();
+    const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
+
+    db.insert(squadInvites)
+      .values({
+        squadId: squad.id,
+        email: null,
+        token,
+        invitedBy: Astro.locals.user!.id,
+        expiresAt,
+      })
+      .run();
+
+    inviteUrl = `${getPublicOrigin(Astro.url.origin)}/${squad.slug}/admins/invite/${token}`;
+    success = "Invite link created. Share it with whoever should become an admin (single-use, expires in 7 days).";
   } else if (action === "remove_admin" && role === "owner") {
     const userId = formData.get("user_id")?.toString();
     if (userId && userId !== Astro.locals.user!.id) {
@@ -164,10 +180,10 @@ const pendingInvites = db
     </ul>
   </section>
 
-  <!-- Invite Form -->
+  <!-- Invite Admin -->
   <section class="mt-8">
     <h2 class="text-lg font-semibold text-gray-900 mb-3">Invite Admin</h2>
-    <form method="POST" class="flex gap-2">
+    <form method="POST" class="flex gap-2 mb-3">
       <input type="hidden" name="action" value="invite" />
       <input
         type="email"
@@ -180,7 +196,17 @@ const pendingInvites = db
         type="submit"
         class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
       >
-        Invite
+        Invite by email
+      </button>
+    </form>
+    <p class="text-sm text-gray-500 mb-3">Or create a one-time link (anyone with the link can accept and become an admin; share only in a trusted channel):</p>
+    <form method="POST">
+      <input type="hidden" name="action" value="invite_link" />
+      <button
+        type="submit"
+        class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+      >
+        Create invite link
       </button>
     </form>
   </section>
@@ -192,7 +218,9 @@ const pendingInvites = db
       <ul class="space-y-2">
         {pendingInvites.map((invite) => (
           <li class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-2">
-            <span class="text-sm text-gray-600">{invite.email}</span>
+            <span class="text-sm text-gray-600">
+              {invite.email ?? "Link invite (one-time)"}
+            </span>
             <span class="text-xs text-gray-400">
               Expires {new Date(invite.expiresAt).toLocaleDateString()}
             </span>

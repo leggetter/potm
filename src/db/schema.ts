@@ -30,7 +30,8 @@ export const squadInvites = sqliteTable("squad_invites", {
   squadId: integer("squad_id")
     .notNull()
     .references(() => squads.id, { onDelete: "cascade" }),
-  email: text("email").notNull(),
+  /** Null for URL-only (link) invites; set for email invites */
+  email: text("email"),
   token: text("token").notNull().unique(),
   invitedBy: text("invited_by").notNull(),
   expiresAt: integer("expires_at", { mode: "number" }).notNull(),

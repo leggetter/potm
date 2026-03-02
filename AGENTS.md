@@ -27,7 +27,7 @@ All forms use standard HTML form submissions with POST handling in Astro frontma
 ### Database
 
 - App tables are defined in `src/db/schema.ts` using Drizzle ORM. Better Auth's tables are NOT in the Drizzle schema — use raw SQL via the `sqlite` export from `src/db/index.ts` when joining with Better Auth tables (e.g. `user`).
-- **Schema changes:** run `npx drizzle-kit push` (or `npm run db:push`). Run Better Auth migrate first on a new DB: `npx auth@latest migrate --config ./src/lib/auth.ts --yes`. For existing DBs with breaking changes (e.g. new columns, nullable deadline), run the relevant migration in `drizzle/` before or after push as needed.
+- **Schema changes:** add a migration with `npx drizzle-kit generate`, then apply with `npm run db:migrate` (or `npx drizzle-kit migrate`). Migrations are tracked in `__drizzle_migrations` and only unapplied ones run. On Fly, startup runs `scripts/bootstrap-drizzle-migrations.js` (seeds the migrations table for DBs created with push) then `drizzle-kit migrate`. Run Better Auth migrate on a new DB: `npx auth@latest migrate --config ./src/lib/auth.ts --yes`. Use `npm run db:push` only for local prototyping if needed.
 - SQLite pragmas: `journal_mode = WAL`, `foreign_keys = ON`
 - All timestamps are stored as integer (unix milliseconds)
 
@@ -69,7 +69,7 @@ npx astro check          # Type checking
 - `src/components/` — Reusable Astro components
 - `src/layouts/` — Page layout wrapper
 - `src/pages/` — File-based routing
-- `scripts/` — Restore and Fly startup: `restore-to-fly.sh` (mirror:fly; uses checkpoint-db.js, validate-restored-db.js), `fly-start.sh` (Docker CMD; uses validate-restored-db.js, has-table.js, ensure-auth-tables.js), `reassign-squad-admins-by-email.js` (one-off on server), `backup-fly-db.sh`, `setup-gcp.sh`
+- `scripts/` — Restore and Fly startup: `restore-to-fly.sh` (mirror:fly; uses checkpoint-db.js, validate-restored-db.js), `fly-start.sh` (Docker CMD; uses validate-restored-db.js, has-table.js, ensure-auth-tables.js, bootstrap-drizzle-migrations.js, drizzle-kit migrate), `reassign-squad-admins-by-email.js` (one-off on server), `backup-fly-db.sh`, `setup-gcp.sh`
 
 ## Things to Watch Out For
 
