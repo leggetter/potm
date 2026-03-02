@@ -64,12 +64,18 @@ try {
   }
 
   const journal = JSON.parse(fs.readFileSync(journalPath, "utf8"));
+  // Seed all but the last migration so the latest one is always run by migrate.
+  // (Existing DBs from push have older schema; we must not mark the newest migration as applied.)
+  const toSeed = journal.entries.slice(0, -1);
+  if (toSeed.length === 0) {
+    process.exit(0);
+  }
   const now = Date.now();
   const insert = db.prepare(
     "INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)"
   );
 
-  for (const entry of journal.entries) {
+  for (const entry of toSeed) {
     const sqlPath = path.join(migrationsFolder, `${entry.tag}.sql`);
     if (!fs.existsSync(sqlPath)) {
       console.error("Migration file not found:", sqlPath);
