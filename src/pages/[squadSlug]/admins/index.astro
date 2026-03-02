@@ -16,9 +16,9 @@ if (!access) {
 }
 
 const { squad, role } = access;
+const publicOrigin = getPublicOrigin(Astro.url.origin);
 let error = "";
 let success = "";
-let inviteUrl = "";
 
 if (Astro.request.method === "POST") {
   const formData = await Astro.request.formData();
@@ -42,8 +42,7 @@ if (Astro.request.method === "POST") {
         })
         .run();
 
-      inviteUrl = `${getPublicOrigin(Astro.url.origin)}/${squad.slug}/admins/invite/${token}`;
-      success = `Invitation created for ${email}. Share the link below.`;
+      success = `Invitation created for ${email}. It appears in Pending Invites below.`;
     }
   } else if (action === "invite_link") {
     const token = randomUUID();
@@ -59,8 +58,21 @@ if (Astro.request.method === "POST") {
       })
       .run();
 
-    inviteUrl = `${getPublicOrigin(Astro.url.origin)}/${squad.slug}/admins/invite/${token}`;
-    success = "Invite link created. Share it with whoever should become an admin (single-use, expires in 7 days).";
+    success = "Invite link created. It appears in Pending Invites below.";
+  } else if (action === "revoke_invite") {
+    const inviteId = formData.get("invite_id")?.toString();
+    if (inviteId) {
+      db.delete(squadInvites)
+        .where(
+          and(
+            eq(squadInvites.id, parseInt(inviteId, 10)),
+            eq(squadInvites.squadId, squad.id),
+            isNull(squadInvites.acceptedAt)
+          )
+        )
+        .run();
+      success = "Invite revoked.";
+    }
   } else if (action === "remove_admin" && role === "owner") {
     const userId = formData.get("user_id")?.toString();
     if (userId && userId !== Astro.locals.user!.id) {
@@ -102,7 +114,7 @@ const admins = sqlite
     userEmail: string;
   }[];
 
-const pendingInvites = db
+const pendingInvitesRaw = db
   .select()
   .from(squadInvites)
   .where(
@@ -110,6 +122,15 @@ const pendingInvites = db
   )
   .all()
   .filter((inv) => inv.expiresAt > Date.now());
+
+// Group by type: email first, then link; build full URL for each
+const pendingInvites = pendingInvitesRaw.map((inv) => ({
+  ...inv,
+  type: inv.email != null ? "email" as const : "link" as const,
+  inviteUrl: `${publicOrigin}/${squad.slug}/admins/invite/${inv.token}`,
+}));
+const pendingEmail = pendingInvites.filter((i) => i.type === "email");
+const pendingLink = pendingInvites.filter((i) => i.type === "link");
 ---
 
 <BaseLayout title={`Admins - ${squad.name}`}>
@@ -126,26 +147,6 @@ const pendingInvites = db
   )}
   {success && (
     <div class="mt-4 rounded-lg bg-green-50 p-3 text-sm text-green-700">{success}</div>
-  )}
-  {inviteUrl && (
-    <div class="mt-4 rounded-lg bg-blue-50 p-3">
-      <p class="text-sm font-medium text-blue-700">Share this invite link:</p>
-      <div class="mt-1 flex gap-2">
-        <input
-          type="text"
-          readonly
-          value={inviteUrl}
-          id="invite-url"
-          class="flex-1 rounded border border-blue-200 bg-white px-2 py-1 text-xs"
-        />
-        <button
-          id="copy-invite"
-          class="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
-        >
-          Copy
-        </button>
-      </div>
-    </div>
   )}
 
   <!-- Current Admins -->
@@ -215,18 +216,79 @@ const pendingInvites = db
   {pendingInvites.length > 0 && (
     <section class="mt-8">
       <h2 class="text-lg font-semibold text-gray-900 mb-3">Pending Invites</h2>
-      <ul class="space-y-2">
-        {pendingInvites.map((invite) => (
-          <li class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-2">
-            <span class="text-sm text-gray-600">
-              {invite.email ?? "Link invite (one-time)"}
-            </span>
-            <span class="text-xs text-gray-400">
-              Expires {new Date(invite.expiresAt).toLocaleDateString()}
-            </span>
-          </li>
-        ))}
-      </ul>
+
+      {pendingEmail.length > 0 && (
+        <div class="mb-4">
+          <h3 class="text-sm font-medium text-gray-700 mb-2">Email invites</h3>
+          <ul class="space-y-2">
+            {pendingEmail.map((invite) => (
+              <li class="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                <span class="rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700">Email</span>
+                <span class="text-sm text-gray-900">{invite.email}</span>
+                <span class="text-xs text-gray-500">Expires {new Date(invite.expiresAt).toLocaleDateString()}</span>
+                <div class="ml-auto flex items-center gap-2">
+                  <div class="flex gap-1">
+                    <input
+                      type="text"
+                      readonly
+                      value={invite.inviteUrl}
+                      id={`invite-url-${invite.id}`}
+                      class="w-64 rounded border border-gray-300 bg-white px-2 py-1 text-xs"
+                    />
+                    <button
+                      type="button"
+                      class="copy-invite-btn rounded bg-gray-600 px-2 py-1 text-xs font-medium text-white hover:bg-gray-700"
+                      data-invite-id={invite.id}
+                    >
+                      Copy
+                    </button>
+                  </div>
+                  <form method="POST" class="inline">
+                    <input type="hidden" name="action" value="revoke_invite" />
+                    <input type="hidden" name="invite_id" value={invite.id} />
+                    <button type="submit" class="text-xs text-red-600 hover:text-red-700">Revoke</button>
+                  </form>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {pendingLink.length > 0 && (
+        <div>
+          <h3 class="text-sm font-medium text-gray-700 mb-2">Link invites (one-time)</h3>
+          <ul class="space-y-2">
+            {pendingLink.map((invite) => (
+              <li class="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                <span class="rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">Link</span>
+                <span class="text-xs text-gray-500">Expires {new Date(invite.expiresAt).toLocaleDateString()}</span>
+                <div class="flex-1 min-w-0 flex items-center gap-2">
+                  <input
+                    type="text"
+                    readonly
+                    value={invite.inviteUrl}
+                    id={`invite-url-${invite.id}`}
+                    class="flex-1 min-w-0 rounded border border-gray-300 bg-white px-2 py-1 text-xs"
+                  />
+                  <button
+                    type="button"
+                    class="copy-invite-btn shrink-0 rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700"
+                    data-invite-id={invite.id}
+                  >
+                    Copy
+                  </button>
+                </div>
+                <form method="POST" class="inline">
+                  <input type="hidden" name="action" value="revoke_invite" />
+                  <input type="hidden" name="invite_id" value={invite.id} />
+                  <button type="submit" class="text-xs text-red-600 hover:text-red-700">Revoke</button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   )}
 
@@ -247,13 +309,20 @@ const pendingInvites = db
   )}
 </BaseLayout>
 
-{inviteUrl && (
+{pendingInvites.length > 0 && (
   <script is:inline>
-    document.getElementById("copy-invite")?.addEventListener("click", () => {
-      const input = document.getElementById("invite-url");
-      input.select();
-      navigator.clipboard.writeText(input.value);
-      document.getElementById("copy-invite").textContent = "Copied!";
+    document.querySelectorAll(".copy-invite-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-invite-id");
+        const input = id ? document.getElementById("invite-url-" + id) : null;
+        if (input) {
+          input.select();
+          navigator.clipboard.writeText(input.value);
+          const label = btn.textContent;
+          btn.textContent = "Copied!";
+          setTimeout(() => { btn.textContent = label; }, 2000);
+        }
+      });
     });
   </script>
 )}
