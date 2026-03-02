@@ -7,8 +7,8 @@ A simple voting app for sports teams. After a match, share a link with your team
 - **Squad management** — Create squads, add players, upload a header image
 - **Multi-admin** — Invite others to help manage your squad via shareable invite links
 - **Fixture creation** — Set up matches with opponent name, player selection, optional details (markdown), and optional deadline. You can open voting when creating or later from the fixture page.
-- **Voting** — Admins open voting (and set a deadline) when ready. One link per fixture: before voting opens visitors see fixture info; when open they can vote (name + player pick). Cookie-based deduplication prevents double votes. You can turn off voting if opened by mistake.
-- **Results** — Admins see full breakdown (vote counts, voter names, bar chart) at any time. Public sees winner(s) only after the deadline.
+- **Voting** — Admins open voting (and set a deadline) when ready. One link per fixture: before voting opens visitors see fixture info; when open they can vote (name + player pick). Cookie-based deduplication prevents double votes. Admins can close voting early; results stay hidden until the admin clicks "Show results" or the deadline passes.
+- **Results** — Admins see full breakdown (vote counts, voter names, bar chart) at any time. Public sees winner(s) after the deadline or when the admin has shown results. Joint POTM is supported (multiple players can tie for top votes).
 
 ## Tech Stack
 
@@ -142,7 +142,7 @@ fly deploy
 
 The SQLite database and uploaded images are stored on a persistent volume mounted at `/data`.
 
-**Data persistence:** The startup script is additive-only: it never drops or truncates tables. It (1) creates Better Auth tables if missing (`CREATE TABLE IF NOT EXISTS`), (2) bootstraps `__drizzle_migrations` for DBs that were created with push (so migrate can skip already-applied migrations), and (3) runs `drizzle-kit migrate` so new migrations run automatically and re-runs are no-ops. Existing users, sessions, squads, and votes are preserved across deploys and restarts. The only way production data is replaced is if you explicitly upload a file as `potm.db.restored` and restart.
+**Data persistence:** The startup script is additive-only: it never drops or truncates tables. It (1) creates Better Auth tables if missing (`CREATE TABLE IF NOT EXISTS`), (2) bootstraps `__drizzle_migrations` for DBs that were created with push (so migrate can skip already-applied migrations), (3) runs `drizzle-kit migrate` so new migrations run automatically and re-runs are no-ops, and (4) runs `ensure-results-visible-at.js` to add the `results_visible_at` column if it was missed. Existing users, sessions, squads, and votes are preserved across deploys and restarts. The only way production data is replaced is if you explicitly upload a file as `potm.db.restored` and restart.
 
 **Backups:** To avoid losing auth or app data, back up the volume periodically.
 

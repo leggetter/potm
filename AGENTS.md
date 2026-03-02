@@ -27,7 +27,7 @@ All forms use standard HTML form submissions with POST handling in Astro frontma
 ### Database
 
 - App tables are defined in `src/db/schema.ts` using Drizzle ORM. Better Auth's tables are NOT in the Drizzle schema — use raw SQL via the `sqlite` export from `src/db/index.ts` when joining with Better Auth tables (e.g. `user`).
-- **Schema changes:** add a migration with `npx drizzle-kit generate`, then apply with `npm run db:migrate` (or `npx drizzle-kit migrate`). Migrations are tracked in `__drizzle_migrations` and only unapplied ones run. On Fly, startup runs `scripts/bootstrap-drizzle-migrations.js` (seeds the migrations table for DBs created with push) then `drizzle-kit migrate`. Run Better Auth migrate on a new DB: `npx auth@latest migrate --config ./src/lib/auth.ts --yes`. Use `npm run db:push` only for local prototyping if needed.
+- **Schema changes:** add a migration with `npx drizzle-kit generate`, then apply with `npm run db:migrate` (or `npx drizzle-kit migrate`). Migrations are tracked in `__drizzle_migrations` and only unapplied ones run. On Fly, startup runs `scripts/bootstrap-drizzle-migrations.js` (seeds the migrations table for DBs created with push), then `drizzle-kit migrate`, then `scripts/ensure-results-visible-at.js` (adds `fixtures.results_visible_at` if missing). Run Better Auth migrate on a new DB: `npx auth@latest migrate --config ./src/lib/auth.ts --yes`. Use `npm run db:push` only for local prototyping if needed.
 - SQLite pragmas: `journal_mode = WAL`, `foreign_keys = ON`
 - All timestamps are stored as integer (unix milliseconds)
 
@@ -69,7 +69,7 @@ npx astro check          # Type checking
 - `src/components/` — Reusable Astro components
 - `src/layouts/` — Page layout wrapper
 - `src/pages/` — File-based routing
-- `scripts/` — Restore and Fly startup: `restore-to-fly.sh` (mirror:fly; uses checkpoint-db.js, validate-restored-db.js), `fly-start.sh` (Docker CMD; uses validate-restored-db.js, has-table.js, ensure-auth-tables.js, bootstrap-drizzle-migrations.js, drizzle-kit migrate), `reassign-squad-admins-by-email.js` (one-off on server), `backup-fly-db.sh`, `setup-gcp.sh`
+- `scripts/` — Restore and Fly startup: `restore-to-fly.sh` (mirror:fly; uses checkpoint-db.js, validate-restored-db.js), `fly-start.sh` (Docker CMD; uses validate-restored-db.js, has-table.js, ensure-auth-tables.js, bootstrap-drizzle-migrations.js, drizzle-kit migrate, ensure-results-visible-at.js), `reassign-squad-admins-by-email.js` (one-off on server), `backup-fly-db.sh`, `setup-gcp.sh`
 
 ## Things to Watch Out For
 
@@ -78,6 +78,6 @@ npx astro check          # Type checking
 - **Fly scale-to-zero:** With `min_machines_running = 0`, scaling to zero destroys machines. Scaling back up creates new machines, which get new volumes by default, so existing volume data can be effectively "lost" (old volume may be unattached). Prefer `min_machines_running = 1` for production if you need to avoid that risk.
 - Drizzle's `.where()` does NOT stack — use `and()` / `or()` to combine conditions
 - Better Auth's sign-in and sign-out are POST endpoints, not GET
-- **Voting**: `fixtures.votingOpenedAt` — when set, voting is open; `deadline` is optional until voting is opened, then required. Admins can "Turn off voting" (set `votingOpenedAt` to null).
+- **Voting**: `fixtures.votingOpenedAt` — when set, voting is open; `deadline` is optional until voting is opened, then required. Admins can close voting (set `votingOpenedAt` to null). Results are shown when `resultsVisibleAt` is set (admin clicks "Show results") or after the deadline when voting was open. Joint POTM: multiple players can tie for top votes; all get the POTM badge.
 - The `potm_voter` cookie (UUID, 1-year) is the stable browser identifier for vote deduplication; `voted_{fixture_id}` is the per-fixture "already voted" flag
 - Squad slugs have a human-readable prefix (from the name) and a short unique ID suffix; changing the squad name updates the prefix and redirects to the new URL; the ID stays the same
