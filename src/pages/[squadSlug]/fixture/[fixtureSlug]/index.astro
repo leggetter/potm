@@ -8,7 +8,7 @@ import {
   getFixturePlayers,
   getFixtureResults,
 } from "../../../../lib/fixtures";
-import { renderDescription } from "../../../../lib/description";
+import { renderDescription, descriptionForWhatsApp } from "../../../../lib/description";
 import { getPublicOrigin } from "../../../../lib/public-url";
 import { db } from "../../../../db";
 import { fixtures, votes } from "../../../../db/schema";
@@ -33,6 +33,7 @@ if (!fixture) {
 const votingOpen = fixture.votingOpenedAt != null;
 const hasDeadline = fixture.deadline != null;
 const isPast = votingOpen && hasDeadline && fixture.deadline! < Date.now();
+const resultsVisible = fixture.resultsVisibleAt != null;
 
 const access = await requireSquadAdmin(squadSlug, Astro.locals.user?.id);
 const isAdmin = !!access;
@@ -71,6 +72,13 @@ if (formData && isAdmin) {
         return Astro.redirect(`/${squad.slug}/fixture/${fixture.slug}`);
       }
     }
+  }
+  if (action === "show_results" && !votingOpen && !resultsVisible) {
+    db.update(fixtures)
+      .set({ resultsVisibleAt: Date.now() })
+      .where(eq(fixtures.id, fixture.id))
+      .run();
+    return Astro.redirect(`/${squad.slug}/fixture/${fixture.slug}`);
   }
 }
 
@@ -137,9 +145,12 @@ const hasVoted = !!votedCookie || justVoted;
 
 const fixturePlayers =
   votingOpen && !isPast && !hasVoted ? await getFixturePlayers(fixture.id) : [];
-const results = isPast || isAdmin ? await getFixtureResults(fixture.id) : [];
+const results =
+  isPast || resultsVisible || isAdmin
+    ? await getFixtureResults(fixture.id)
+    : [];
 const winners =
-  isPast && results.length > 0
+  (isPast || resultsVisible) && results.length > 0
     ? results.filter(
         (r) => r.voteCount === results[0].voteCount && r.voteCount > 0,
       )
@@ -148,11 +159,11 @@ const winners =
 const fixtureUrl = `${getPublicOrigin(Astro.url.origin)}/${squad.slug}/fixture/${fixture.slug}`;
 const ogImageUrl = `${fixtureUrl}/og`;
 
-// Default deadline for "Open voting" form: tomorrow at 23:59 (local), format YYYY-MM-DDTHH:mm
+// Default deadline for "Open voting" form: use fixture's existing deadline when reopening, else tomorrow 23:59 (local)
 const tomorrow = new Date();
 tomorrow.setDate(tomorrow.getDate() + 1);
 tomorrow.setHours(23, 59, 0, 0);
-const defaultDeadline =
+const tomorrowStr =
   tomorrow.getFullYear() +
   "-" +
   String(tomorrow.getMonth() + 1).padStart(2, "0") +
@@ -162,6 +173,11 @@ const defaultDeadline =
   String(tomorrow.getHours()).padStart(2, "0") +
   ":" +
   String(tomorrow.getMinutes()).padStart(2, "0");
+const defaultDeadline =
+  fixture.deadline != null
+    ? new Date(fixture.deadline - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+    : tomorrowStr;
+const isReopening = !votingOpen && fixture.deadline != null;
 ---
 
 <BaseLayout title={`vs ${fixture.opponent} - ${squad.name}`}>
@@ -203,13 +219,24 @@ const defaultDeadline =
   <article
     class="rounded-xl border border-gray-200/80 bg-white shadow-sm mb-6 overflow-hidden"
   >
-    <div
-      class="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4"
-    >
-      <div class="min-w-0">
+    <div class="p-5 sm:p-6">
+      <!-- Title row: heading + Edit (admin only), so description/URL can be full width below -->
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <h1 class="text-2xl font-bold tracking-tight text-gray-900">
           vs {fixture.opponent}
         </h1>
+        {
+          isAdmin && (
+            <a
+              href={`/${squad.slug}/fixture/${fixture.slug}/edit`}
+              class="shrink-0 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
+            >
+              Edit fixture
+            </a>
+          )
+        }
+      </div>
+      <div class="min-w-0 w-full">
         <p class="mt-1 text-sm text-gray-500">
           {
             new Date(fixture.gameDate).toLocaleDateString("en-GB", {
@@ -241,46 +268,99 @@ const defaultDeadline =
           }
           {
             !votingOpen && (
-              <span class="ml-2 inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
-                Voting not open yet
+              <span
+                class:list={[
+                  "ml-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
+                  hasDeadline ? "bg-gray-100 text-gray-600" : "bg-amber-100 text-amber-800",
+                ]}
+              >
+                {hasDeadline ? "Closed" : "Voting not open yet"}
               </span>
             )
           }
         </p>
         {
           fixture.description && (
-            <div
-              class="mt-3 rounded-lg bg-gray-50/80 border border-gray-100 px-3 py-2.5 text-sm text-gray-600 description-richtext"
-              set:html={renderDescription(fixture.description)}
-            />
+            <div class="mt-3 relative">
+              <div
+                class="rounded-lg bg-gray-50/80 border border-gray-100 px-3 py-2.5 pr-9 text-sm text-gray-600 description-richtext"
+                set:html={renderDescription(fixture.description)}
+              />
+              <button
+                type="button"
+                class="copy-whatsapp absolute top-2 right-2 rounded p-1.5 text-gray-400 hover:bg-gray-200/80 hover:text-gray-600 transition-colors"
+                title="Copy for WhatsApp"
+                data-description={JSON.stringify(descriptionForWhatsApp(fixture.description))}
+                data-fixture-url={JSON.stringify(fixtureUrl)}
+                aria-label="Copy for WhatsApp"
+              >
+                <span class="copy-whatsapp-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                  </svg>
+                </span>
+                <span class="copy-whatsapp-done hidden text-xs font-medium text-emerald-600" aria-hidden="true">Copied!</span>
+              </button>
+            </div>
+          )
+        }
+        {
+          isAdmin && (
+            <div class="mt-2 flex gap-2 flex-wrap items-center w-full">
+              <input
+                type="text"
+                readonly
+                value={fixtureUrl}
+                id="fixture-url"
+                class="min-w-0 flex-1 rounded border border-gray-200 bg-gray-50 px-2 py-1.5 text-sm text-gray-600"
+              />
+              <button
+                id="copy-fixture-url"
+                type="button"
+                class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+              >
+                Copy
+              </button>
+            </div>
           )
         }
       </div>
-      {
-        isAdmin && (
-          <a
-            href={`/${squad.slug}/fixture/${fixture.slug}/edit`}
-            class="shrink-0 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
-          >
-            Edit fixture
-          </a>
-        )
-      }
     </div>
   </article>
 
-  <!-- Admin: Open voting (when not yet open) -->
+  <!-- Admin: Voting closed — show results and/or reopen in one section -->
   {
     isAdmin && !votingOpen && (
       <div class="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm border-l-4 border-l-amber-500 p-4 sm:p-5">
-        <h2 class="text-sm font-semibold text-gray-900 mb-1">Open voting</h2>
-        <p class="text-sm text-gray-600 mb-3">
-          Set a deadline; voting will open until then.
+        <h2 class="text-sm font-semibold text-gray-900 mb-1">
+          {isReopening ? "Voting is closed" : "Open voting"}
+        </h2>
+        <p class="text-sm text-gray-600 mb-4">
+          {isReopening
+            ? "Show results to everyone, or set a deadline and reopen to accept more votes."
+            : "Set a deadline; voting will open until then."}
         </p>
+        {
+          !resultsVisible && (
+            <div class="mb-4 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+              <form method="POST">
+                <input type="hidden" name="action" value="show_results" />
+                <button
+                  type="submit"
+                  class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors w-full sm:w-auto"
+                >
+                  Show results
+                </button>
+              </form>
+              <p class="text-xs text-gray-500 sm:mb-0">Make POTM winner and full results visible to everyone.</p>
+            </div>
+          )
+        }
         {error && <p class="mb-2 text-sm text-red-600">{error}</p>}
-        <form method="POST" class="flex flex-wrap items-end gap-3">
+        <form method="POST" class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:gap-3">
           <input type="hidden" name="action" value="open_voting" />
-          <div>
+          <div class="w-full sm:w-auto sm:min-w-[200px]">
             <label
               for="deadline"
               class="block text-xs font-medium text-gray-700"
@@ -293,62 +373,35 @@ const defaultDeadline =
               name="deadline"
               required
               value={defaultDeadline}
-              class="mt-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+              class="mt-1 w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
             />
           </div>
           <button
             type="submit"
-            class="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-amber-700 transition-colors"
+            class="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 transition-colors w-full sm:w-auto"
           >
-            Open voting
+            {isReopening ? "Reopen voting" : "Open voting"}
           </button>
         </form>
       </div>
     )
   }
 
-  <!-- Admin: Share link (when voting open or admin always) -->
-  {
-    isAdmin && (
-      <div class="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm border-l-4 border-l-indigo-500 p-4 sm:p-5">
-        <p class="text-sm font-medium text-gray-700 mb-2">
-          Share the fixture link
-        </p>
-        <div class="flex gap-2 flex-wrap">
-          <input
-            type="text"
-            readonly
-            value={fixtureUrl}
-            id="fixture-url"
-            class="flex-1 min-w-[200px] rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600"
-          />
-          <button
-            id="copy-fixture-url"
-            type="button"
-            class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 transition-colors"
-          >
-            Copy
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  <!-- Admin: Turn off voting (when voting is open) -->
+  <!-- Admin: Close voting (when voting is open) -->
   {
     isAdmin && votingOpen && (
       <div class="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm border-l-4 border-l-amber-500 p-4 sm:p-5">
         <form method="POST">
           <input type="hidden" name="action" value="close_voting" />
           <p class="text-sm text-gray-600 mb-3">
-            Voting is currently open. You can turn it off; the deadline is kept
-            for when you open voting again.
+            All submissions in? Close voting before the deadline. You can reopen
+            if you need to accept more votes.
           </p>
           <button
             type="submit"
             class="rounded-lg border border-amber-600 bg-white px-4 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50 transition-colors"
           >
-            Turn off voting
+            Close voting
           </button>
         </form>
       </div>
@@ -365,15 +418,17 @@ const defaultDeadline =
   }
 
   {
-    !votingOpen && !isAdmin && (
+    !votingOpen && !isAdmin && !resultsVisible && (
       <p class="text-gray-500">
-        POTM voting is not open yet. Check back later.
+        {hasDeadline
+          ? "Voting is closed."
+          : "POTM voting is not open yet. Check back later."}
       </p>
     )
   }
 
   {
-    votingOpen && isPast ? (
+    (votingOpen && isPast) || resultsVisible ? (
       <section>
         {winners.length === 0 ? (
           <p class="text-gray-500">No votes were cast.</p>
@@ -493,5 +548,34 @@ const defaultDeadline =
     navigator.clipboard.writeText(input.value);
     const btn = document.getElementById("copy-fixture-url");
     if (btn) btn.textContent = "Copied!";
+  });
+  document.querySelectorAll(".copy-whatsapp").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const rawDesc = btn.getAttribute("data-description");
+      const rawUrl = btn.getAttribute("data-fixture-url");
+      if (!rawDesc) return;
+      try {
+        const description = JSON.parse(rawDesc);
+        const url = rawUrl ? JSON.parse(rawUrl) : "";
+        const text = url ? `${description}\n\n${url}` : description;
+        navigator.clipboard.writeText(text);
+        const icon = btn.querySelector(".copy-whatsapp-icon");
+        const done = btn.querySelector(".copy-whatsapp-done");
+        if (icon && done) {
+          icon.classList.add("hidden");
+          done.classList.remove("hidden");
+          btn.setAttribute("title", "Copied!");
+          btn.setAttribute("aria-label", "Copied!");
+          btn.classList.add("!bg-emerald-100", "!text-emerald-700");
+          setTimeout(() => {
+            icon.classList.remove("hidden");
+            done.classList.add("hidden");
+            btn.setAttribute("title", "Copy for WhatsApp");
+            btn.setAttribute("aria-label", "Copy for WhatsApp");
+            btn.classList.remove("!bg-emerald-100", "!text-emerald-700");
+          }, 2000);
+        }
+      } catch (_) {}
+    });
   });
 </script>

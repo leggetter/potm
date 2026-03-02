@@ -7,13 +7,13 @@ interface Props {
   rows?: number;
 }
 
-const { name = "description", id = "description", value = "", placeholder = "Use the buttons or type **bold**, *italic*, or - list items…", rows = 5 } = Astro.props;
+const { name = "description", id = "description", value = "", placeholder = "Use *bold*, _italic_, or - list items (WhatsApp-style)…", rows = 5 } = Astro.props;
 ---
 
 <div class="description-editor">
   <div class="mb-1 flex flex-wrap gap-1 rounded-t-lg border border-b-0 border-gray-300 bg-gray-100 px-2 py-1.5">
-    <button type="button" data-cmd="bold" class="rounded px-2 py-1 text-sm font-bold hover:bg-gray-200" title="Bold">B</button>
-    <button type="button" data-cmd="italic" class="rounded px-2 py-1 text-sm italic hover:bg-gray-200" title="Italic">I</button>
+    <button type="button" data-cmd="bold" class="rounded px-2 py-1 text-sm font-bold hover:bg-gray-200" title="Bold (*text*)">B</button>
+    <button type="button" data-cmd="italic" class="rounded px-2 py-1 text-sm italic hover:bg-gray-200" title="Italic (_text_)">I</button>
     <button type="button" data-cmd="bullet" class="rounded px-2 py-1 text-sm hover:bg-gray-200" title="Bullet list">• List</button>
     <button type="button" data-cmd="link" class="rounded px-2 py-1 text-sm hover:bg-gray-200" title="Link">Link</button>
   </div>
@@ -56,8 +56,8 @@ const { name = "description", id = "description", value = "", placeholder = "Use
       btn.addEventListener("click", (e) => {
         e.preventDefault();
         const cmd = (e.currentTarget as HTMLElement).dataset.cmd;
-        if (cmd === "bold") wrap("**", "**");
-        else if (cmd === "italic") wrap("*", "*");
+        if (cmd === "bold") wrap("*", "*");
+        else if (cmd === "italic") wrap("_", "_");
         else if (cmd === "bullet") insert("\n- ");
         else if (cmd === "link") wrap("[", "](url)");
       });

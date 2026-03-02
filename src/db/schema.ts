@@ -64,6 +64,8 @@ export const fixtures = sqliteTable("fixtures", {
   gameDate: integer("game_date", { mode: "number" }).notNull(),
   deadline: integer("deadline", { mode: "number" }),
   votingOpenedAt: integer("voting_opened_at", { mode: "number" }),
+  /** When set, POTM/results are shown to everyone (deliberate action after closing voting early) */
+  resultsVisibleAt: integer("results_visible_at", { mode: "number" }),
   createdBy: text("created_by").notNull(),
   createdAt: integer("created_at", { mode: "number" })
     .notNull()
