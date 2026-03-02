@@ -24,6 +24,7 @@
     "db:push": "drizzle-kit push",
     "db:migrate": "drizzle-kit migrate",
     "db:auth-migrate": "npx auth@latest migrate --config ./src/lib/auth.ts --yes",
-    "mirror:fly": "./scripts/restore-to-fly.sh"
+    "mirror:fly": "./scripts/restore-to-fly.sh",
+    "pull:fly": "./scripts/pull-fly-db.sh"
   }
 }
