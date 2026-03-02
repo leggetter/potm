@@ -20,7 +20,11 @@ if [ -n "$DB_PATH" ] && [ -f "$DB_PATH" ]; then
   fi
   # Run Drizzle migrations (idempotent: only unapplied migrations run).
   # Bootstrap seeds __drizzle_migrations for DBs that were created with push so migrate skips them.
-  DB_PATH="$DB_PATH" node /app/scripts/bootstrap-drizzle-migrations.js 2>/dev/null || true
+  echo "[fly-start] Running Drizzle bootstrap and migrate..." >&2
+  DB_PATH="$DB_PATH" node /app/scripts/bootstrap-drizzle-migrations.js || true
   DB_PATH="$DB_PATH" npx drizzle-kit migrate
+  # Ensure 0006 column exists (in case migrate was skipped or DB was created before 0006).
+  DB_PATH="$DB_PATH" node /app/scripts/ensure-results-visible-at.js || true
+  echo "[fly-start] Migrations done." >&2
 fi
 exec node dist/server/entry.mjs
