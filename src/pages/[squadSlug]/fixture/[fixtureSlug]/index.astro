@@ -231,7 +231,7 @@ const hasAtLeastOneVote = totalVotes > 0;
   >
     <div class="p-5 sm:p-6">
       <!-- Title row: heading + Edit (admin only), so description/URL can be full width below -->
-      <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <h1 class="text-2xl font-bold tracking-tight text-gray-900">
           vs {fixture.opponent}
         </h1>
@@ -239,15 +239,19 @@ const hasAtLeastOneVote = totalVotes > 0;
           isAdmin && (
             <a
               href={`/${squad.slug}/fixture/${fixture.slug}/edit`}
-              class="shrink-0 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
+              class="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
             >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                <path d="m15 5 4 4"/>
+              </svg>
               Edit fixture
             </a>
           )
         }
       </div>
-      <div class="min-w-0 w-full">
-        <p class="mt-1 text-sm text-gray-500">
+      <div class="min-w-0 w-full mt-4">
+        <p class="text-sm text-gray-500">
           {
             new Date(fixture.gameDate).toLocaleDateString("en-GB", {
               weekday: "short",
@@ -283,10 +287,10 @@ const hasAtLeastOneVote = totalVotes > 0;
               <span
                 class:list={[
                   "ml-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-                  resultsVisible ? "bg-amber-100 text-amber-800" : hasDeadline ? "bg-gray-100 text-gray-600" : "bg-yellow-100 text-yellow-800",
+                  resultsVisible ? "bg-amber-100 text-amber-800" : hasDeadline && isGameDayOrBeyond ? "bg-gray-100 text-gray-600" : "bg-yellow-100 text-yellow-800",
                 ]}
               >
-                {resultsVisible ? "POTM decided" : hasDeadline ? "Closed" : "Upcoming"}
+                {resultsVisible ? "POTM decided" : hasDeadline && isGameDayOrBeyond ? "Closed" : "Upcoming"}
               </span>
             )
           }
