@@ -7,6 +7,11 @@ interface ImportMetaEnv {
   readonly BETTER_AUTH_URL?: string;
   readonly DB_PATH?: string;
   readonly UPLOAD_DIR?: string;
+  // PostHog
+  readonly PUBLIC_POSTHOG_KEY: string;
+  readonly PUBLIC_POSTHOG_HOST: string;
+  readonly POSTHOG_API_KEY: string;
+  readonly POSTHOG_HOST: string;
 }
 
 declare namespace App {

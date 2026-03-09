@@ -4,6 +4,7 @@ import { db } from "../db";
 import { squads, squadAdmins } from "../db/schema";
 import { generateSlug } from "../lib/squads";
 import { validateUpload, saveUpload } from "../lib/uploads";
+import { posthog } from "../lib/posthog-server";
 
 if (!Astro.locals.user) {
   return Astro.redirect("/login");
@@ -46,6 +47,17 @@ if (Astro.request.method === "POST") {
           role: "owner",
         })
         .run();
+
+      posthog.capture({
+        distinctId: Astro.locals.user.id,
+        event: "squad_created",
+        properties: {
+          squad_name: name,
+          squad_slug: slug,
+          has_description: description != null,
+          has_header_image: headerImage != null,
+        },
+      });
 
       return Astro.redirect(`/${slug}`);
     }

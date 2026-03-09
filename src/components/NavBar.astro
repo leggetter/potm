@@ -49,11 +49,13 @@ const { user } = Astro.props;
 {user && (
   <script is:inline>
     document.getElementById("sign-out-btn")?.addEventListener("click", async () => {
+      window.posthog?.capture("user_signed_out");
       await fetch("/api/auth/sign-out", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: "{}",
       });
+      window.posthog?.reset();
       window.location.href = "/";
     });
   </script>

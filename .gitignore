@@ -5,3 +5,6 @@ backups/
 .env
 .env.production
 .astro/
+
+# Skill/reference files added by wizards (e.g. PostHog)
+.claude/skills/

@@ -7,6 +7,9 @@ if (!Astro.locals.user) {
 }
 
 const squads = await getUserSquads(Astro.locals.user.id);
+const currentUserId = Astro.locals.user.id;
+const currentUserEmail = Astro.locals.user.email;
+const currentUserName = Astro.locals.user.name;
 ---
 
 <BaseLayout title="Dashboard">
@@ -55,3 +58,11 @@ const squads = await getUserSquads(Astro.locals.user.id);
     </div>
   )}
 </BaseLayout>
+
+<script is:inline define:vars={{ currentUserId, currentUserEmail, currentUserName }}>
+  // Identify the logged-in user with PostHog
+  window.posthog?.identify(currentUserId, {
+    email: currentUserEmail,
+    name: currentUserName,
+  });
+</script>

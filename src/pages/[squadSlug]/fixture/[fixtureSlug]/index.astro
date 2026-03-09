@@ -14,6 +14,7 @@ import { db } from "../../../../db";
 import { fixtures, votes } from "../../../../db/schema";
 import { and, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
+import { posthog } from "../../../../lib/posthog-server";
 
 const { squadSlug, fixtureSlug } = Astro.params;
 if (!squadSlug || !fixtureSlug) {
@@ -54,6 +55,15 @@ if (formData && isAdmin) {
       .set({ votingOpenedAt: null })
       .where(eq(fixtures.id, fixture.id))
       .run();
+    posthog.capture({
+      distinctId: Astro.locals.user!.id,
+      event: "voting_closed",
+      properties: {
+        squad_slug: squad.slug,
+        fixture_slug: fixture.slug,
+        opponent: fixture.opponent,
+      },
+    });
     return Astro.redirect(`/${squad.slug}/fixture/${fixture.slug}`);
   }
   if (action === "open_voting" && !votingOpen) {
@@ -69,6 +79,16 @@ if (formData && isAdmin) {
           .set({ votingOpenedAt: Date.now(), deadline: deadlineMs })
           .where(eq(fixtures.id, fixture.id))
           .run();
+        posthog.capture({
+          distinctId: Astro.locals.user!.id,
+          event: "voting_opened",
+          properties: {
+            squad_slug: squad.slug,
+            fixture_slug: fixture.slug,
+            opponent: fixture.opponent,
+            deadline: new Date(deadlineMs).toISOString(),
+          },
+        });
         return Astro.redirect(`/${squad.slug}/fixture/${fixture.slug}`);
       }
     }
@@ -133,6 +153,17 @@ if (formData && !error && votingOpen && !isPast && !votedCookie && !justVoted) {
           maxAge: 365 * 24 * 60 * 60,
           httpOnly: true,
           sameSite: "lax",
+        });
+
+        posthog.capture({
+          distinctId: voterToken,
+          event: "vote_submitted",
+          properties: {
+            squad_slug: squad.slug,
+            fixture_slug: fixture.slug,
+            opponent: fixture.opponent,
+            voter_name: voterName,
+          },
         });
 
         justVoted = true;

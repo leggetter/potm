@@ -3,6 +3,7 @@ import BaseLayout from "../../../../layouts/BaseLayout.astro";
 import { db } from "../../../../db";
 import { squadInvites, squadAdmins, squads } from "../../../../db/schema";
 import { eq, and } from "drizzle-orm";
+import { posthog } from "../../../../lib/posthog-server";
 
 const { token, squadSlug } = Astro.params;
 if (!token || !squadSlug) {
@@ -79,6 +80,15 @@ if (Astro.request.method === "POST" && !error && !accepted) {
       .set({ acceptedAt: Date.now() })
       .where(eq(squadInvites.id, invite.id))
       .run();
+
+    posthog.capture({
+      distinctId: Astro.locals.user.id,
+      event: "invite_accepted",
+      properties: {
+        squad_slug: squad.slug,
+        invite_type: invite.email != null ? "email" : "link",
+      },
+    });
 
     return Astro.redirect(`/${squad.slug}`);
   }

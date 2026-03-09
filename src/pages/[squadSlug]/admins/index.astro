@@ -6,6 +6,7 @@ import { db, sqlite } from "../../../db";
 import { squadAdmins, squadInvites } from "../../../db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
+import { posthog } from "../../../lib/posthog-server";
 
 const { squadSlug } = Astro.params;
 if (!squadSlug) return Astro.redirect("/dashboard");
@@ -42,6 +43,15 @@ if (Astro.request.method === "POST") {
         })
         .run();
 
+      posthog.capture({
+        distinctId: Astro.locals.user!.id,
+        event: "admin_invited",
+        properties: {
+          squad_slug: squad.slug,
+          invite_type: "email",
+          invited_email: email,
+        },
+      });
       success = `Invitation created for ${email}. It appears in Pending Invites below.`;
     }
   } else if (action === "invite_link") {
@@ -58,6 +68,14 @@ if (Astro.request.method === "POST") {
       })
       .run();
 
+    posthog.capture({
+      distinctId: Astro.locals.user!.id,
+      event: "admin_invited",
+      properties: {
+        squad_slug: squad.slug,
+        invite_type: "link",
+      },
+    });
     success = "Invite link created. It appears in Pending Invites below.";
   } else if (action === "revoke_invite") {
     const inviteId = formData.get("invite_id")?.toString();
