@@ -8,15 +8,23 @@ const noopClient = {
   shutdown: async () => {},
 } as unknown as PostHog;
 
+// Use process.env at runtime (Fly secrets); fallback to import.meta.env (Vite dev/build from .env)
+function getPostHogConfig(): { key: string | undefined; host: string } {
+  const key =
+    process.env.POSTHOG_API_KEY ||
+    (import.meta as unknown as { env?: { POSTHOG_API_KEY?: string } }).env?.POSTHOG_API_KEY;
+  const host =
+    process.env.POSTHOG_HOST ||
+    (import.meta as unknown as { env?: { POSTHOG_HOST?: string } }).env?.POSTHOG_HOST ||
+    "https://eu.i.posthog.com";
+  return { key, host };
+}
+
 function getClient(): PostHog {
   if (!posthogClient) {
-    const key = import.meta.env.POSTHOG_API_KEY;
+    const { key, host } = getPostHogConfig();
     posthogClient = key
-      ? new PostHog(key, {
-          host: import.meta.env.POSTHOG_HOST || "https://eu.i.posthog.com",
-          flushAt: 1,
-          flushInterval: 0,
-        })
+      ? new PostHog(key, { host, flushAt: 1, flushInterval: 0 })
       : noopClient;
   }
   return posthogClient;

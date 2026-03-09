@@ -69,6 +69,10 @@ Local dev uses `.env`; production uses `.env.production` (and on Fly.io, secrets
 | `BETTER_AUTH_URL` | App base URL (e.g. `http://localhost:4321` locally; `https://potm-voting.fly.dev` in production) |
 | `DB_PATH` | Optional. SQLite path (default `./data/potm.db`; on Fly set to `/data/potm.db`) |
 | `UPLOAD_DIR` | Optional. Uploads directory (default `./data/uploads`; on Fly set to `/data/uploads` so uploads live on the volume) |
+| `POSTHOG_API_KEY` | Optional. PostHog project API key (server-side). If unset, server-side capture is a no-op. On Fly, set via `fly secrets set POSTHOG_API_KEY=phx_...` |
+| `POSTHOG_HOST` | Optional. PostHog host (default `https://eu.i.posthog.com`). Set if using a different region or self-hosted. |
+| `PUBLIC_POSTHOG_KEY` | Optional. PostHog public key for client-side (browser) analytics. Inlined at build time. |
+| `PUBLIC_POSTHOG_HOST` | Optional. PostHog host for client (default typically same as server). |
 
 ## Project Structure
 
@@ -130,11 +134,14 @@ Use **`.env.production`** for production config. The setup script writes it when
 fly apps create potm-voting
 fly volumes create potm_data --region lhr --size 1
 
-# Set secrets from .env.production (ensure BETTER_AUTH_URL is your Fly app URL). DB_PATH and UPLOAD_DIR are already set in fly.toml.
-fly secrets set GOOGLE_CLIENT_ID="$(grep GOOGLE_CLIENT_ID .env.production | cut -d= -f2-)" \
-  GOOGLE_CLIENT_SECRET="$(grep GOOGLE_CLIENT_SECRET .env.production | cut -d= -f2-)" \
-  BETTER_AUTH_SECRET="$(grep BETTER_AUTH_SECRET .env.production | cut -d= -f2-)" \
-  BETTER_AUTH_URL="$(grep BETTER_AUTH_URL .env.production | cut -d= -f2-)"
+# Sync secrets from .env.production (sets GOOGLE_*, BETTER_AUTH_*, and optional POSTHOG_* if present).
+./scripts/sync-fly-secrets.sh
+
+# Or set them manually (DB_PATH and UPLOAD_DIR are already in fly.toml [env]):
+# fly secrets set GOOGLE_CLIENT_ID="$(grep GOOGLE_CLIENT_ID .env.production | cut -d= -f2-)" ...
+
+# Check what's on Fly (should match .env.production for auth vars):
+# fly secrets list -a potm-voting
 
 # Deploy
 fly deploy

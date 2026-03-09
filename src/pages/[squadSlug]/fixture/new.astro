@@ -7,6 +7,7 @@ import { db } from "../../../db";
 import { players, fixtures, fixturePlayers } from "../../../db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { posthog } from "../../../lib/posthog-server";
+import { isGameDayOrBeyond } from "../../../lib/fixture-status";
 
 const { squadSlug } = Astro.params;
 if (!squadSlug) return Astro.redirect("/dashboard");
@@ -35,44 +36,48 @@ if (Astro.request.method === "POST") {
   } else if (votingOpen && !deadline) {
     error = "Voting deadline is required when voting is open.";
   } else if (votingOpen && deadline) {
-    const deadlineMs = new Date(deadline).getTime();
-    if (deadlineMs <= Date.now()) {
-      error = "Deadline must be in the future.";
-    } else if (selectedPlayers.length === 0) {
-      error = "Select at least one player.";
+    const gameDateMs = new Date(gameDateStr).getTime();
+    if (!isGameDayOrBeyond(gameDateMs)) {
+      error = "Voting can only be opened on or after the match date.";
     } else {
-      const slug = generateFixtureSlug(opponent);
-      const gameDateMs = new Date(gameDateStr).getTime();
-      const fixture = db
-        .insert(fixtures)
-        .values({
-          squadId: squad.id,
-          slug,
-          opponent,
-          description,
-          gameDate: gameDateMs,
-          deadline: deadlineMs,
-          votingOpenedAt: Date.now(),
-          createdBy: Astro.locals.user!.id,
-        })
-        .returning({ id: fixtures.id })
-        .get();
-      for (const playerId of selectedPlayers) {
-        db.insert(fixturePlayers)
-          .values({ fixtureId: fixture.id, playerId })
-          .run();
+      const deadlineMs = new Date(deadline).getTime();
+      if (deadlineMs <= Date.now()) {
+        error = "Deadline must be in the future.";
+      } else if (selectedPlayers.length === 0) {
+        error = "Select at least one player.";
+      } else {
+        const slug = generateFixtureSlug(opponent);
+        const fixture = db
+          .insert(fixtures)
+          .values({
+            squadId: squad.id,
+            slug,
+            opponent,
+            description,
+            gameDate: gameDateMs,
+            deadline: deadlineMs,
+            votingOpenedAt: Date.now(),
+            createdBy: Astro.locals.user!.id,
+          })
+          .returning({ id: fixtures.id })
+          .get();
+        for (const playerId of selectedPlayers) {
+          db.insert(fixturePlayers)
+            .values({ fixtureId: fixture.id, playerId })
+            .run();
+        }
+        posthog.capture({
+          distinctId: Astro.locals.user!.id,
+          event: "fixture_created",
+          properties: {
+            squad_slug: squad.slug,
+            opponent,
+            voting_open: true,
+            player_count: selectedPlayers.length,
+          },
+        });
+        return Astro.redirect(`/${squad.slug}/fixture/${slug}`);
       }
-      posthog.capture({
-        distinctId: Astro.locals.user!.id,
-        event: "fixture_created",
-        properties: {
-          squad_slug: squad.slug,
-          opponent,
-          voting_open: true,
-          player_count: selectedPlayers.length,
-        },
-      });
-      return Astro.redirect(`/${squad.slug}/fixture/${slug}`);
     }
   } else if (selectedPlayers.length === 0) {
     error = "Select at least one player.";

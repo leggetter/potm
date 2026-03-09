@@ -15,6 +15,12 @@ import { fixtures, votes } from "../../../../db/schema";
 import { and, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { posthog } from "../../../../lib/posthog-server";
+import {
+  getFixtureVotingState,
+  getFixtureStatus,
+  getFixtureBadge,
+  getFixtureBadgeClass,
+} from "../../../../lib/fixture-status";
 
 const { squadSlug, fixtureSlug } = Astro.params;
 if (!squadSlug || !fixtureSlug) {
@@ -31,10 +37,22 @@ if (!fixture) {
   return new Response("Not found", { status: 404 });
 }
 
-const votingOpen = fixture.votingOpenedAt != null;
-const hasDeadline = fixture.deadline != null;
-const isPast = votingOpen && hasDeadline && fixture.deadline! < Date.now();
-const resultsVisible = fixture.resultsVisibleAt != null;
+const fixtureLike = {
+  gameDate: fixture.gameDate,
+  deadline: fixture.deadline,
+  votingOpenedAt: fixture.votingOpenedAt,
+  resultsVisibleAt: fixture.resultsVisibleAt,
+};
+const state = getFixtureVotingState(fixtureLike);
+const status = getFixtureStatus(fixtureLike);
+const badge = getFixtureBadge(status, fixtureLike);
+const badgeClass = getFixtureBadgeClass(badge);
+const votingOpen = state.votingOpen;
+const hasDeadline = state.hasDeadline;
+const isPast = state.isPastDeadline;
+const resultsVisible = state.resultsVisible;
+const isGameDayOrBeyond = state.isGameDayOrBeyond;
+const isReopening = state.isReopening;
 
 const access = await requireSquadAdmin(squadSlug, Astro.locals.user?.id);
 const isAdmin = !!access;
@@ -67,15 +85,18 @@ if (formData && isAdmin) {
     return Astro.redirect(`/${squad.slug}/fixture/${fixture.slug}`);
   }
   if (action === "open_voting" && !votingOpen) {
-    const deadline = formData.get("deadline")?.toString();
-    if (!deadline) {
-      error = "Voting deadline is required when opening voting.";
+    if (!state.isGameDayOrBeyond) {
+      error = "Voting can only be opened on or after the match date.";
     } else {
-      const deadlineMs = new Date(deadline).getTime();
-      if (deadlineMs <= Date.now()) {
-        error = "Deadline must be in the future.";
+      const deadline = formData.get("deadline")?.toString();
+      if (!deadline) {
+        error = "Voting deadline is required when opening voting.";
       } else {
-        db.update(fixtures)
+        const deadlineMs = new Date(deadline).getTime();
+        if (deadlineMs <= Date.now()) {
+          error = "Deadline must be in the future.";
+        } else {
+          db.update(fixtures)
           .set({ votingOpenedAt: Date.now(), deadline: deadlineMs })
           .where(eq(fixtures.id, fixture.id))
           .run();
@@ -89,7 +110,8 @@ if (formData && isAdmin) {
             deadline: new Date(deadlineMs).toISOString(),
           },
         });
-        return Astro.redirect(`/${squad.slug}/fixture/${fixture.slug}`);
+          return Astro.redirect(`/${squad.slug}/fixture/${fixture.slug}`);
+        }
       }
     }
   }
@@ -208,15 +230,6 @@ const defaultDeadline =
   fixture.deadline != null
     ? new Date(fixture.deadline - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)
     : tomorrowStr;
-const isReopening = !votingOpen && fixture.deadline != null;
-
-// Open voting / Show results only from the day of the fixture onward (calendar day, server local)
-const gameDayStart = new Date(fixture.gameDate);
-gameDayStart.setHours(0, 0, 0, 0);
-const todayStart = new Date();
-todayStart.setHours(0, 0, 0, 0);
-const isGameDayOrBeyond = gameDayStart.getTime() <= todayStart.getTime();
-
 const totalVotes = results.reduce((sum, r) => sum + r.voteCount, 0);
 const hasAtLeastOneVote = totalVotes > 0;
 ---
@@ -301,14 +314,10 @@ const hasAtLeastOneVote = totalVotes > 0;
                 <span
                   class:list={[
                     "ml-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-                    isPast && resultsVisible
-                      ? "bg-amber-100 text-amber-800"
-                      : isPast
-                        ? "bg-gray-100 text-gray-600"
-                        : "bg-emerald-100 text-emerald-700",
+                    badgeClass,
                   ]}
                 >
-                  {isPast && resultsVisible ? "POTM decided" : isPast ? "Closed" : "Voting open"}
+                  {badge}
                 </span>
               </>
             )
@@ -318,10 +327,10 @@ const hasAtLeastOneVote = totalVotes > 0;
               <span
                 class:list={[
                   "ml-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-                  resultsVisible ? "bg-amber-100 text-amber-800" : hasDeadline && isGameDayOrBeyond ? "bg-gray-100 text-gray-600" : "bg-yellow-100 text-yellow-800",
+                  badgeClass,
                 ]}
               >
-                {resultsVisible ? "POTM decided" : hasDeadline && isGameDayOrBeyond ? "Closed" : "Upcoming"}
+                {badge}
               </span>
             )
           }
