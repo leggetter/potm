@@ -153,6 +153,38 @@ describe("getFixtureStatus", () => {
     const status = getFixtureStatus(fixture, now);
     expect(getFixtureBadge(status, fixture, now)).toBe("Voting not yet opened");
   });
+
+  it("POSTPONED when status is postponed (overrides derived state)", () => {
+    const fixture: FixtureLike = {
+      gameDate: gameDay,
+      deadline: now + 3600000,
+      votingOpenedAt: now,
+      resultsVisibleAt: null,
+      status: "postponed",
+    };
+    expect(getFixtureStatus(fixture, now)).toBe("POSTPONED");
+  });
+
+  it("CANCELLED when status is cancelled (overrides derived state)", () => {
+    const fixture: FixtureLike = {
+      gameDate: gameDay,
+      deadline: null,
+      votingOpenedAt: null,
+      resultsVisibleAt: null,
+      status: "cancelled",
+    };
+    expect(getFixtureStatus(fixture, now)).toBe("CANCELLED");
+  });
+
+  it("missing status treated as scheduled (derived state used)", () => {
+    const fixture: FixtureLike = {
+      gameDate: gameDay,
+      deadline: null,
+      votingOpenedAt: null,
+      resultsVisibleAt: null,
+    };
+    expect(getFixtureStatus(fixture, now)).toBe("UPCOMING");
+  });
 });
 
 describe("getFixtureBadge", () => {
@@ -187,6 +219,12 @@ describe("getFixtureBadge", () => {
     expect(
       getFixtureBadge("UPCOMING", { gameDate: gameDay, deadline: null, votingOpenedAt: null, resultsVisibleAt: null }, now),
     ).toBe("Voting not yet opened");
+    expect(
+      getFixtureBadge("POSTPONED", { gameDate: gameDay, deadline: null, votingOpenedAt: null, resultsVisibleAt: null, status: "postponed" }, now),
+    ).toBe("Postponed");
+    expect(
+      getFixtureBadge("CANCELLED", { gameDate: gameDay, deadline: null, votingOpenedAt: null, resultsVisibleAt: null, status: "cancelled" }, now),
+    ).toBe("Cancelled");
   });
 });
 
@@ -197,5 +235,7 @@ describe("getFixtureBadgeClass", () => {
     expect(getFixtureBadgeClass("Upcoming")).toBe("bg-yellow-100 text-yellow-800");
     expect(getFixtureBadgeClass("Voting not yet opened")).toBe("bg-yellow-100 text-yellow-800");
     expect(getFixtureBadgeClass("Closed")).toBe("bg-gray-100 text-gray-600");
+    expect(getFixtureBadgeClass("Postponed")).toBe("bg-gray-100 text-gray-600");
+    expect(getFixtureBadgeClass("Cancelled")).toBe("bg-gray-100 text-gray-600");
   });
 });

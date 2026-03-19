@@ -20,11 +20,16 @@ export function isGameDayOrBeyond(gameDate: number, now: number = Date.now()): b
   return getUKDateString(gameDate) <= getUKDateString(now);
 }
 
+/** Stored fixture status: scheduled = normal; postponed/cancelled = game did not/will not take place (same UI treatment). */
+export type FixtureStatusValue = "scheduled" | "postponed" | "cancelled";
+
 export type FixtureLike = {
   gameDate: number;
   deadline: number | null;
   votingOpenedAt: number | null;
   resultsVisibleAt: number | null;
+  /** Omit or undefined = treated as "scheduled" for backfill. */
+  status?: FixtureStatusValue | null;
 };
 
 export type FixtureVotingState = {
@@ -41,7 +46,9 @@ export type FixtureStatus =
   | "VOTING_OPEN"
   | "VOTING_ENDED"
   | "CLOSED"
-  | "UPCOMING";
+  | "UPCOMING"
+  | "POSTPONED"
+  | "CANCELLED";
 
 export function getFixtureVotingState(
   fixture: FixtureLike,
@@ -64,11 +71,14 @@ export function getFixtureVotingState(
   };
 }
 
-/** Derivation order: first match wins. */
+/** Derivation order: first match wins. Stored status postponed/cancelled overrides derived state. */
 export function getFixtureStatus(
   fixture: FixtureLike,
   now: number = Date.now(),
 ): FixtureStatus {
+  const stored = fixture.status ?? "scheduled";
+  if (stored === "postponed") return "POSTPONED";
+  if (stored === "cancelled") return "CANCELLED";
   const state = getFixtureVotingState(fixture, now);
   if (state.resultsVisible) return "POTM_DECIDED";
   if (state.votingOpen && !state.isPastDeadline) return "VOTING_OPEN";
@@ -83,7 +93,9 @@ export type BadgeLabel =
   | "Voting open"
   | "Upcoming"
   | "Voting not yet opened"
-  | "Closed";
+  | "Closed"
+  | "Postponed"
+  | "Cancelled";
 
 /**
  * Badge label for squad list and fixture header.
@@ -102,6 +114,10 @@ export function getFixtureBadge(
     case "VOTING_ENDED":
     case "CLOSED":
       return "Closed";
+    case "POSTPONED":
+      return "Postponed";
+    case "CANCELLED":
+      return "Cancelled";
     case "UPCOMING":
       return isGameDayOrBeyond(fixture.gameDate, now)
         ? "Voting not yet opened"
@@ -120,6 +136,8 @@ export function getFixtureBadgeClass(badge: BadgeLabel): string {
     case "Voting not yet opened":
       return "bg-yellow-100 text-yellow-800";
     case "Closed":
+    case "Postponed":
+    case "Cancelled":
       return "bg-gray-100 text-gray-600";
   }
 }

@@ -79,5 +79,6 @@ npx astro check          # Type checking
 - Drizzle's `.where()` does NOT stack — use `and()` / `or()` to combine conditions
 - Better Auth's sign-in and sign-out are POST endpoints, not GET
 - **Voting**: `fixtures.votingOpenedAt` — when set, voting is open; `deadline` is optional until voting is opened, then required. Admins can close voting (set `votingOpenedAt` to null). Results are shown when `resultsVisibleAt` is set (admin clicks "Show results") or after the deadline when voting was open. Joint POTM: multiple players can tie for top votes; all get the POTM badge.
+- **Fixture status**: `fixtures.status` is `scheduled` (default), `postponed`, or `cancelled`. Postponed/cancelled are treated the same in code (no voting, no results; show badge and message). UI shows the label "Postponed" or "Cancelled". Admins set status on the edit page; they can reschedule by editing date and setting status back to scheduled, or leave as-is and create a new fixture.
 - The `potm_voter` cookie (UUID, 1-year) is the stable browser identifier for vote deduplication; `voted_{fixture_id}` is the per-fixture "already voted" flag
 - Squad slugs have a human-readable prefix (from the name) and a short unique ID suffix; changing the squad name updates the prefix and redirects to the new URL; the ID stays the same

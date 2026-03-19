@@ -29,6 +29,13 @@
       "when": 1772444000000,
       "tag": "0006_fixture_results_visible_at",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1773879501632,
+      "tag": "0004_add_fixture_status",
+      "breakpoints": true
     }
   ]
 }

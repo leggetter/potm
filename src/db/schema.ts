@@ -66,6 +66,12 @@ export const fixtures = sqliteTable("fixtures", {
   votingOpenedAt: integer("voting_opened_at", { mode: "number" }),
   /** When set, POTM/results are shown to everyone (deliberate action after closing voting early) */
   resultsVisibleAt: integer("results_visible_at", { mode: "number" }),
+  /** scheduled = normal flow; postponed/cancelled = game did not/will not take place (same UI treatment) */
+  status: text("status", {
+    enum: ["scheduled", "postponed", "cancelled"],
+  })
+    .notNull()
+    .default("scheduled"),
   createdBy: text("created_by").notNull(),
   createdAt: integer("created_at", { mode: "number" })
     .notNull()

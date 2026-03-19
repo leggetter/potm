@@ -23,6 +23,7 @@ if (!fixture) {
   return new Response("Not found", { status: 404 });
 }
 
+const validStatuses = ["scheduled", "postponed", "cancelled"] as const;
 let error = "";
 
 if (Astro.request.method === "POST") {
@@ -31,6 +32,7 @@ if (Astro.request.method === "POST") {
   const description = formData.get("description")?.toString().trim() || null;
   const gameDateStr = formData.get("game_date")?.toString();
   const deadline = formData.get("deadline")?.toString();
+  const statusValue = formData.get("status")?.toString();
   const selectedPlayers = formData.getAll("players").map(Number);
 
   const votingOpen = fixture.votingOpenedAt != null;
@@ -40,6 +42,8 @@ if (Astro.request.method === "POST") {
     error = "Game date is required.";
   } else if (votingOpen && !deadline) {
     error = "Voting deadline is required when voting is open.";
+  } else if (!statusValue || !validStatuses.includes(statusValue as (typeof validStatuses)[number])) {
+    error = "Please select a fixture status.";
   } else if (selectedPlayers.length === 0) {
     error = "Select at least one player.";
   } else {
@@ -53,6 +57,7 @@ if (Astro.request.method === "POST") {
         description,
         gameDate: gameDateMs,
         deadline: deadlineMs ?? undefined,
+        status: statusValue as (typeof validStatuses)[number],
       })
       .where(eq(fixtures.id, fixture.id))
       .run();
@@ -83,6 +88,9 @@ const deadlineValue =
     ? new Date(fixture.deadline - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)
     : "";
 const gameDateValue = new Date(fixture.gameDate).toISOString().slice(0, 10);
+const currentStatus = (fixture.status && validStatuses.includes(fixture.status as (typeof validStatuses)[number]))
+  ? fixture.status
+  : "scheduled";
 ---
 
 <BaseLayout title={`Edit fixture - ${squad.name}`}>
@@ -127,6 +135,22 @@ const gameDateValue = new Date(fixture.gameDate).toISOString().slice(0, 10);
         placeholder="e.g. Location: Main pitch. Arrival: 9:30. Kick-off: 10:00. Kit: Red."
         rows={5}
       />
+    </div>
+
+    <div>
+      <label for="status" class="block text-sm font-medium text-gray-700">
+        Fixture status
+      </label>
+      <select
+        id="status"
+        name="status"
+        class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+      >
+        <option value="scheduled" selected={currentStatus === "scheduled"}>Scheduled</option>
+        <option value="postponed" selected={currentStatus === "postponed"}>Postponed</option>
+        <option value="cancelled" selected={currentStatus === "cancelled"}>Cancelled</option>
+      </select>
+      <p class="mt-0.5 text-xs text-gray-500">Postponed or cancelled fixtures do not show voting; you can reschedule by setting a new date and status back to Scheduled.</p>
     </div>
 
     <div>

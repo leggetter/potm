@@ -148,6 +148,7 @@ const fixtureList = isAdmin ? await getSquadFixtures(squad.id) : [];
             deadline: fixture.deadline,
             votingOpenedAt: fixture.votingOpenedAt,
             resultsVisibleAt: fixture.resultsVisibleAt,
+            status: fixture.status ?? undefined,
           };
           const state = getFixtureVotingState(fixtureLike);
           const status = getFixtureStatus(fixtureLike);

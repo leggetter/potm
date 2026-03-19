@@ -42,15 +42,17 @@ const fixtureLike = {
   deadline: fixture.deadline,
   votingOpenedAt: fixture.votingOpenedAt,
   resultsVisibleAt: fixture.resultsVisibleAt,
+  status: fixture.status ?? undefined,
 };
 const state = getFixtureVotingState(fixtureLike);
 const status = getFixtureStatus(fixtureLike);
 const badge = getFixtureBadge(status, fixtureLike);
 const badgeClass = getFixtureBadgeClass(badge);
-const votingOpen = state.votingOpen;
+const isPostponedOrCancelled = status === "POSTPONED" || status === "CANCELLED";
+const votingOpen = isPostponedOrCancelled ? false : state.votingOpen;
 const hasDeadline = state.hasDeadline;
 const isPast = state.isPastDeadline;
-const resultsVisible = state.resultsVisible;
+const resultsVisible = isPostponedOrCancelled ? false : state.resultsVisible;
 const isGameDayOrBeyond = state.isGameDayOrBeyond;
 const isReopening = state.isReopening;
 
@@ -65,8 +67,8 @@ let error = "";
 const formData =
   Astro.request.method === "POST" ? await Astro.request.formData() : null;
 
-// POST: Open voting / Turn off voting (admin only)
-if (formData && isAdmin) {
+// POST: Open voting / Turn off voting (admin only) — not for postponed/cancelled
+if (formData && isAdmin && !isPostponedOrCancelled) {
   const action = formData.get("action")?.toString();
   if (action === "close_voting" && votingOpen) {
     db.update(fixtures)
@@ -84,7 +86,7 @@ if (formData && isAdmin) {
     });
     return Astro.redirect(`/${squad.slug}/fixture/${fixture.slug}`);
   }
-  if (action === "open_voting" && !votingOpen) {
+  if (action === "open_voting" && !votingOpen && !isPostponedOrCancelled) {
     if (!state.isGameDayOrBeyond) {
       error = "Voting can only be opened on or after the match date.";
     } else {
@@ -124,8 +126,8 @@ if (formData && isAdmin) {
   }
 }
 
-// POST: Vote submission (when voting open and before deadline; skip if we already set error from open_voting)
-if (formData && !error && votingOpen && !isPast && !votedCookie && !justVoted) {
+// POST: Vote submission (when voting open and before deadline; skip if postponed/cancelled or we already set error from open_voting)
+if (formData && !error && !isPostponedOrCancelled && votingOpen && !isPast && !votedCookie && !justVoted) {
   const voteAction = formData.get("action")?.toString();
   if (voteAction === "vote") {
     const voterName = formData.get("voter_name")?.toString().trim();
@@ -197,9 +199,11 @@ if (formData && !error && votingOpen && !isPast && !votedCookie && !justVoted) {
 const hasVoted = !!votedCookie || justVoted;
 
 const fixturePlayers =
-  votingOpen && !isPast && !hasVoted ? await getFixturePlayers(fixture.id) : [];
+  !isPostponedOrCancelled && votingOpen && !isPast && !hasVoted
+    ? await getFixturePlayers(fixture.id)
+    : [];
 const results =
-  isPast || resultsVisible || isAdmin
+  !isPostponedOrCancelled && (isPast || resultsVisible || isAdmin)
     ? await getFixtureResults(fixture.id)
     : [];
 const winners =
@@ -385,16 +389,27 @@ const hasAtLeastOneVote = totalVotes > 0;
     </div>
   </article>
 
-  <!-- Admin: Voting closed — show results and/or reopen (only from game day onward) -->
+  <!-- Postponed / Cancelled: single message, no voting or results -->
   {
-    isAdmin && !votingOpen && !isGameDayOrBeyond && (
+    isPostponedOrCancelled && (
+      <p class="mb-6 text-gray-600">
+        {status === "POSTPONED"
+          ? "This fixture was postponed."
+          : "This fixture was cancelled."}
+      </p>
+    )
+  }
+
+  <!-- Admin: Voting closed — show results and/or reopen (only from game day onward; not for postponed/cancelled) -->
+  {
+    isAdmin && !isPostponedOrCancelled && !votingOpen && !isGameDayOrBeyond && (
       <p class="mb-6 text-sm text-gray-500">
         Open voting and show results are available from the day of the fixture ({new Date(fixture.gameDate).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}).
       </p>
     )
   }
   {
-    isAdmin && !votingOpen && isGameDayOrBeyond && (
+    isAdmin && !isPostponedOrCancelled && !votingOpen && isGameDayOrBeyond && (
       <div class="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm border-l-4 border-l-amber-500 p-4 sm:p-5">
         <h2 class="text-sm font-semibold text-gray-900 mb-1">
           {isReopening ? "Voting is closed" : "Open voting"}
@@ -453,9 +468,9 @@ const hasAtLeastOneVote = totalVotes > 0;
     )
   }
 
-  <!-- Admin: Close voting (when voting is open) -->
+  <!-- Admin: Close voting (when voting is open; not for postponed/cancelled) -->
   {
-    isAdmin && votingOpen && (
+    isAdmin && !isPostponedOrCancelled && votingOpen && (
       <div class="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm border-l-4 border-l-amber-500 p-4 sm:p-5">
         <form method="POST">
           <input type="hidden" name="action" value="close_voting" />
@@ -484,7 +499,7 @@ const hasAtLeastOneVote = totalVotes > 0;
   }
 
   {
-    !votingOpen && !isAdmin && !resultsVisible && (
+    !isPostponedOrCancelled && !votingOpen && !isAdmin && !resultsVisible && (
       <p class="text-gray-500">
         {hasDeadline
           ? "Voting is closed."
@@ -494,7 +509,7 @@ const hasAtLeastOneVote = totalVotes > 0;
   }
 
   {
-    (votingOpen && isPast) || resultsVisible ? (
+    !isPostponedOrCancelled && ((votingOpen && isPast) || resultsVisible) ? (
       <section>
         {winners.length === 0 ? (
           <p class="text-gray-500">No votes were cast.</p>
@@ -522,7 +537,7 @@ const hasAtLeastOneVote = totalVotes > 0;
           </div>
         )}
       </section>
-    ) : votingOpen && hasVoted ? (
+    ) : !isPostponedOrCancelled && votingOpen && hasVoted ? (
       <section>
         <div class="rounded-xl border border-gray-200 bg-white shadow-sm border-l-4 border-l-emerald-500 p-6 text-center">
           <p class="text-lg font-semibold text-emerald-700">
@@ -543,7 +558,7 @@ const hasAtLeastOneVote = totalVotes > 0;
           </div>
         )}
       </section>
-    ) : votingOpen && fixturePlayers.length > 0 ? (
+    ) : !isPostponedOrCancelled && votingOpen && fixturePlayers.length > 0 ? (
       <section class="space-y-6">
         <form method="POST" class="space-y-5">
           <input type="hidden" name="action" value="vote" />
@@ -600,7 +615,7 @@ const hasAtLeastOneVote = totalVotes > 0;
           </div>
         )}
       </section>
-    ) : votingOpen && fixturePlayers.length === 0 ? (
+    ) : !isPostponedOrCancelled && votingOpen && fixturePlayers.length === 0 ? (
       <p class="text-gray-500">No players in this fixture.</p>
     ) : null
   }

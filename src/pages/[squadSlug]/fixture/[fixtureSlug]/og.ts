@@ -49,6 +49,12 @@ export const GET: APIRoute = async ({ params }) => {
   }
 
   const gameDateStr = formatGameDate(fixture.gameDate ?? null);
+  const statusLabel =
+    fixture.status === "postponed"
+      ? "Postponed"
+      : fixture.status === "cancelled"
+        ? "Cancelled"
+        : null;
 
   const overlayContent = React.createElement(
     "div",
@@ -98,6 +104,19 @@ export const GET: APIRoute = async ({ params }) => {
               textShadow: "0 1px 2px rgba(0,0,0,0.5)",
             },
             children: gameDateStr,
+          })
+        : null,
+      statusLabel
+        ? React.createElement("div", {
+            key: "status",
+            style: {
+              fontSize: 22,
+              fontWeight: 600,
+              color: "rgba(255,255,255,0.95)",
+              marginTop: 8,
+              textShadow: "0 1px 2px rgba(0,0,0,0.5)",
+            },
+            children: statusLabel,
           })
         : null,
       React.createElement("div", {

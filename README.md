@@ -6,7 +6,7 @@ A simple voting app for sports teams. After a match, share a link with your team
 
 - **Squad management** — Create squads, add players, upload a header image
 - **Multi-admin** — Invite others to help manage your squad via shareable invite links
-- **Fixture creation** — Set up matches with opponent name, player selection, optional details (markdown), and optional deadline. You can open voting when creating or later from the fixture page.
+- **Fixture creation** — Set up matches with opponent name, player selection, optional details (markdown), and optional deadline. You can open voting when creating or later from the fixture page. Admins can mark a fixture as **postponed** or **cancelled** (edit fixture → Fixture status); those show a clear badge, hide voting, and can be rescheduled in place or left as-is with a new fixture for the rearranged match.
 - **Voting** — Admins open voting (and set a deadline) when ready. One link per fixture: before voting opens visitors see fixture info; when open they can vote (name + player pick). Cookie-based deduplication prevents double votes. Admins can close voting early; results stay hidden until the admin clicks "Show results" or the deadline passes.
 - **Results** — Admins see full breakdown (vote counts, voter names, bar chart) at any time. Public sees winner(s) after the deadline or when the admin has shown results. Joint POTM is supported (multiple players can tie for top votes).
 
